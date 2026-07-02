@@ -20,10 +20,10 @@ Then invoke it in Claude Code with `/tableau-migration`, or just ask to "migrate
 ## What's in here
 | Path | What |
 |------|------|
-| `SKILL.md` | The playbook (workflow, connection mapping, templates, rules, batch loop) |
+| `SKILL.md` | The playbook — lean workflow spine (Claude reads this to run a migration) |
+| `reference/` | On-demand detail: `connection-mapping.md`, `building-cells.md` (SQL + charts), `gotchas.md`, `hex-file-schema.json` |
 | `templates/` | Clone-and-override native Hex cell configs (METRIC, EXPLORE variants) |
 | `scripts/tableau_fetch.py` | Fetch `.twb`/`.twbx` from Tableau Cloud/Server |
-| `reference/hex-file-schema.json` | Hex file JSON Schema (validate before import) |
 | `credentials/` | `tableau.env.example` (copy → `tableau.env`, gitignored) |
 | `tableau_exports/`, `working/` | Local downloads + scratch (gitignored) |
 
