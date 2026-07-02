@@ -82,6 +82,7 @@ Why: the agent is **blind to rendered output**, so a human check on a tiny first
    hex project create ...
    hex cell create -s "$(cat workbook.twb)"   # markdown cell holding the source XML
    ```
+   **Keep this `.twb` cell in the notebook, but never add it to the app layout** — it's a working reference for whoever maintains the migration, not stakeholder-facing. (Same for the raw SQL cells; see step 6.)
 
 3. **Parse the XML, then PLAN shared queries — don't default to one SQL per chart.** The `.twb` XML is the **source of truth**; screenshots are QA only. A dashboard's worksheets usually sit on one data source, so **cluster worksheets** that share base table + join + data-source/context filters + a compatible grain into **one SQL cell** (finest grain, union of columns); each chart's EXPLORE aggregates/filters over that dataframe. Strategy + when-to-split → [`reference/building-cells.md`](reference/building-cells.md).
    - ⚠️ **Sweep ALL filter scopes.** Data-source/context/workbook filters apply to every sheet → put in the shared `WHERE`; **worksheet** filters stay per-cell. Missing a shared-scope filter silently changes totals.

@@ -37,6 +37,6 @@ Consult these when you hit the relevant step. The parsing rules are correctness 
 
 App layout **is** settable via CLI: `hex project export <id> -o f.yaml` → edit the `appLayout` block → `hex project import f.yaml`. Import matches by `projectId`/`sourceVersionId` (both DO NOT CHANGE) and updates in place as a new version.
 
-Schema: `appLayout.tabs[].rows[].columns[]`; a column has `start`/`end` (0–120 grid) + `elements[]`; each element = `{type: CELL, cellId, showLabel, showSource, hideOutput, height}`. Use the **export's** cellIds (they differ from `hex cell` API ids). Map cells by **position/order** (stable), not by content-sniffing. Exclude the `.twb` source cell + raw SQL cells from the app view.
+Schema: `appLayout.tabs[].rows[].columns[]`; a column has `start`/`end` (0–120 grid) + `elements[]`; each element = `{type: CELL, cellId, showLabel, showSource, hideOutput, height}`. Use the **export's** cellIds (they differ from `hex cell` API ids). Map cells by **position/order** (stable), not by content-sniffing. **Never put the `.twb` source cell or the raw SQL cells in the `appLayout`** — leave them in the notebook (they're working references), and build the app layout from only the native chart/KPI cells.
 
 > **UI gotcha:** after importing an appLayout, the Hex app view still shows the empty "build an app" onboarding screen — click **"edit app manually"** once to reveal it. The import worked; this is just a UI acknowledgment.
