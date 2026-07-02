@@ -19,6 +19,7 @@ Consult these when you hit the relevant step. The parsing rules are correctness 
 - **Watch pre-bucketed numeric "date" columns.** A column like `CLOSED_MONTH` may be a NUMBER, not a date — `DATE_TRUNC` errors on it. Use the real date column (`CLOSED_DATE`).
 - **Maps: no native cell.** Build maps as a Python CODE cell (`px.scatter_geo(df, lat=, lon=, color=, size=, projection="natural earth")`), not an EXPLORE scatter of lat/lon.
 - **Tooltips are aggregate-only** (measures, not text/dimension values) → Tableau's **detail/LOD text dimension has no clean EXPLORE equivalent**. Note the gap, don't hack around it. Per-row point charts needing text granularity → Python cell.
+- **External file / spreadsheet data sources aren't in the `.twb`.** Lookups loaded from Excel/CSV — region → sales-region maps, quarterly goals, targets (`class='excel-direct'` / `'textscan'` under a `federated` connection) — appear in the XML as **schema + join only; the actual rows are NOT there** and can't be recovered from the `.twb`. If a workbook joins/blends a file-based source, **ask the customer for the source file (or a CSV export)** and build the lookup from it. Never fabricate the mapping values.
 
 ---
 
