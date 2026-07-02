@@ -54,7 +54,7 @@ Migration is the best moment a team ever gets to prune. Most Tableau sites are 6
    - **Local files:** customer exports `.twb`/`.twbx` (Tableau Desktop → *File → Export Packaged Workbook*) into one folder.
    - Name the folder per wave (e.g. `tableau_exports/wave1/`) so waves stay separate.
 
-4. **Complexity triage — set expectations.** Flag known-gap features up front (detail in [`reference/gotchas.md`](reference/gotchas.md) + [`building-cells.md`](reference/building-cells.md)): **maps** → Python cell; **detail/LOD text tooltips** → no clean equivalent; **cosmetic styling** → Hex defaults; **heavy calc/parameter logic** → more per-workbook tuning. Mark them in the plan so the non-pixel-perfect result isn't a surprise.
+4. **Complexity triage — set expectations.** Flag known-gap features up front (detail in [`reference/gotchas.md`](reference/gotchas.md) + [`building-cells.md`](reference/building-cells.md)): **maps** → Python cell; **detail/LOD text tooltips** → no clean equivalent; **external file/spreadsheet source** (region map, quarterly goals) → rows aren't in the `.twb`; **ask the customer for the file**, don't guess; **cosmetic styling** → Hex defaults; **heavy calc/parameter logic** → more per-workbook tuning. Mark them in the plan so the non-pixel-perfect result isn't a surprise.
 
 # First pass — cap at 1–2 dashboards (pilot, then scale)
 
