@@ -62,6 +62,8 @@ Real, valid exported cell configs live in `templates/`. **Clone one, override a 
 
 Styling lives in `config.spec.chartConfig` (data labels `series[].text.dataLabels`, donut `series[].radius`, legend `settings.legend.position`, colors via `colorMappings`). Split it — don't try 1:1:
 
+> The field a color/size split rides on lives in the worksheet's `<encodings>`. Make sure your parse actually kept it — a dimension that appears *only* as an encoding is still in use; don't drop it as a dead column (see `gotchas.md`).
+
 | Styling | In the `.twb`? | Map it? |
 |---------|----------------|---------|
 | Chart type, stacking, dual-axis | Yes | **Yes** |
