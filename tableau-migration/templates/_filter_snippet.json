@@ -1,0 +1,10 @@
+[
+ {
+  "_where": "config.displayTableConfig.filters (pivot/table) OR config.spec.filters (chart)",
+  "column": "ACCOUNT_SEGMENT_TYPE",
+  "fieldType": "COLUMN",
+  "predicate": { "op": "IS_ONE_OF", "arg": ["Strategic", "SMB"] },
+  "queryPath": [],
+  "columnType": "STRING"
+ }
+]
