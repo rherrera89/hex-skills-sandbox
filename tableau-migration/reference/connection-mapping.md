@@ -18,8 +18,8 @@ Pull: `class` (snowflake/bigquery/…), `server`/host, `dbname`, `schema`, `ware
 ## 3. Do NOT match on host
 The account URL usually differs even for the same data:
 ```
-Tableau:  qib82113.snowflakecomputing.com  /  B2B_DEMO_DATA . PROD
-Hex:      co24109.us-east-2.aws            /  b2b_demo_data
+Tableau:  <account-a>.snowflakecomputing.com  /  SALES_DB . PUBLIC
+Hex:      <account-b>.<region>.aws            /  sales_db
           ^ different host,  same database.  (and possibly a different SNAPSHOT — data parity is NOT guaranteed)
 ```
 

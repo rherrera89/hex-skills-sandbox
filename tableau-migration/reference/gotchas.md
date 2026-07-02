@@ -6,7 +6,7 @@ Consult these when you hit the relevant step. The parsing rules are correctness 
 
 ## Parsing correctness rules
 
-- **Resolve scrambled field names.** Tableau "copy" duplications scramble internal field names — resolve via *encodings → internal-name → caption + formula*, never by caption alone. (A "Total ARR KPI" pill can actually be Closed-Won ARR.)
+- **Resolve fields by definition, not by caption.** Duplications and renames in Tableau can make a field's caption misleading — resolve each field through its encoding → internal name → underlying formula/column, so you port what it actually computes, not what it's labeled.
 - **Sweep ALL filter scopes.** Tableau filters live at four scopes:
   - **worksheet** (`<worksheet>//filter`) — stays **per-chart** (an EXPLORE cell filter); does **not** fork the query.
   - **dashboard**
@@ -14,9 +14,8 @@ Consult these when you hit the relevant step. The parsing rules are correctness 
   - **shared / context / workbook** (`workbook/shared-views/shared-view//filter`, often `context=true`).
 
   Context/workbook + data-source filters apply to **every** sheet on that datasource — push them into the shared query's `WHERE`. Missing a shared-scope filter silently changes totals.
-  - *Relative-date gotcha:* Tableau counts the current period as one. `first-period=-1, last-period=0, period-type=year` = **last 2 years**, not 1 — the window starts at the beginning of 2 years ago. Don't map `-1` to "1 year back." (Getting this off-by-one produced $9M vs the correct $13M.)
-- **Dates stay dates.** Never `TO_CHAR` a Tableau date to a string in SQL — it breaks the EXPLORE date axis. Keep the column a real DATE, set base-axis `dataType: DATE` + `truncUnit` to match the Tableau date pill (`tqr`→`quarter`, `tmn`→`month`, `YEAR()`→`year`). Preserves Hex's date formatting + granularity controls.
-- **Watch pre-bucketed numeric "date" columns.** A column like `CLOSED_MONTH` may be a NUMBER, not a date — `DATE_TRUNC` errors on it. Use the real date column (`CLOSED_DATE`).
+  - *Relative-date / date-range filters:* translate the window deliberately. Relative windows are defined by period offsets that **include the current period**, so an offset can span one more calendar period than the number suggests — work out the actual start/end dates instead of mapping the offset literally, and **sanity-check the resulting totals/row counts** against the source.
+- **Preserve field data types in the SQL translation — dates especially.** Keep Tableau date fields as real DATEs end-to-end; don't cast a date to a string (it breaks the chart's date axis). Set the base-axis `dataType: DATE` and carry the pill's granularity as `truncUnit` (`tqr`→`quarter`, `tmn`→`month`, `YEAR()`→`year`), which preserves Hex's date formatting + granularity controls. And **confirm a field's actual type before applying date/number functions** — a field that reads like a date (e.g. a "month" or "period" column) may really be a number or string, so a date function will error or silently mislead.
 - **Maps: no native cell.** Build maps as a Python CODE cell (`px.scatter_geo(df, lat=, lon=, color=, size=, projection="natural earth")`), not an EXPLORE scatter of lat/lon.
 - **Tooltips are aggregate-only** (measures, not text/dimension values) → Tableau's **detail/LOD text dimension has no clean EXPLORE equivalent**. Note the gap, don't hack around it. Per-row point charts needing text granularity → Python cell.
 - **External file / spreadsheet data sources aren't in the `.twb`.** Lookups loaded from Excel/CSV — region → sales-region maps, quarterly goals, targets (`class='excel-direct'` / `'textscan'` under a `federated` connection) — appear in the XML as **schema + join only; the actual rows are NOT there** and can't be recovered from the `.twb`. If a workbook joins/blends a file-based source, **ask the customer for the source file (or a CSV export)** and build the lookup from it. Never fabricate the mapping values.
