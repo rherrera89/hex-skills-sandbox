@@ -5,12 +5,11 @@ A durable, portable [Claude Code](https://claude.com/claude-code) skill that mig
 **The full playbook lives in [`SKILL.md`](SKILL.md).** That's the canonical doc Claude reads.
 
 ## Install (make it invocable)
-Drop this folder into a Claude Code project's skills directory:
+One line, from the project you want it in:
 ```bash
-git clone git@github.com:rherrera89/hex-skills.git
-cp -r hex-skills/tableau-migration /path/to/project/.claude/skills/tableau-migration
+curl -fsSL https://raw.githubusercontent.com/rherrera89/hex-skills/main/install.sh | bash -s -- tableau-migration
 ```
-Then invoke it in Claude Code with `/tableau-migration`, or just ask to "migrate my Tableau dashboards to Hex" — the `description` frontmatter triggers it.
+This drops the skill into `.claude/skills/tableau-migration/` (secrets and local scratch are never copied). Then invoke it in Claude Code with `/tableau-migration`, or just ask to "migrate my Tableau dashboards to Hex" — the `description` frontmatter triggers it.
 
 ## First-time setup
 1. `cp credentials/tableau.env.example credentials/tableau.env` and fill in your Tableau **pod URL**, **site**, and **Personal Access Token**. (Gitignored — never commit it.)
