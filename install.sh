@@ -8,11 +8,11 @@
 #     ./install.sh <skill> [project-dir]   # install a skill (default: current dir)
 #
 #   Or straight from GitHub, no clone needed:
-#     curl -fsSL https://raw.githubusercontent.com/rherrera89/hex-skills/main/install.sh | bash -s -- <skill> [project-dir]
+#     curl -fsSL https://raw.githubusercontent.com/rherrera89/hex-skills-sandbox/main/install.sh | bash -s -- <skill> [project-dir]
 #
 set -euo pipefail
 
-REPO_URL="https://github.com/rherrera89/hex-skills.git"
+REPO_URL="https://github.com/rherrera89/hex-skills-sandbox.git"
 SKILL="${1:-}"
 TARGET="${2:-$PWD}"
 

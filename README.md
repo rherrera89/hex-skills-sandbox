@@ -12,7 +12,7 @@ Claude Code skills for [Hex](https://hex.tech). Each subfolder is a self-contain
 
 One line, straight from GitHub — installs into the current project's `.claude/skills/`:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rherrera89/hex-skills/main/install.sh | bash -s -- tableau-migration
+curl -fsSL https://raw.githubusercontent.com/rherrera89/hex-skills-sandbox/main/install.sh | bash -s -- tableau-migration
 ```
 
 Or if you've cloned the repo:

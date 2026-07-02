@@ -7,7 +7,7 @@ A durable, portable [Claude Code](https://claude.com/claude-code) skill that mig
 ## Install (make it invocable)
 One line, from the project you want it in:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rherrera89/hex-skills/main/install.sh | bash -s -- tableau-migration
+curl -fsSL https://raw.githubusercontent.com/rherrera89/hex-skills-sandbox/main/install.sh | bash -s -- tableau-migration
 ```
 This drops the skill into `.claude/skills/tableau-migration/` (secrets and local scratch are never copied). Then invoke it in Claude Code with `/tableau-migration`, or just ask to "migrate my Tableau dashboards to Hex" — the `description` frontmatter triggers it.
 
