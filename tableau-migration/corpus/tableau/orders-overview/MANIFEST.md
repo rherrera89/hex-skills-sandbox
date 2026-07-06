@@ -36,6 +36,18 @@ corpus, and the first case to get Hex goldens.
 - Bar EXPLORE cells (region, category) + ratio KPIs as METRIC cells.
 - Carry number/percent display formats from the `.twb`.
 
+## Goldens
+
+- `golden/phase1-sql.json` — the expected Phase-1 (code-conversion) output: one
+  consolidated order-line SQL cell (ORDER_FACT ⨝ CUSTOMER_DIM ⨝ PRODUCT_DIM) that
+  feeds all 6 worksheets, plus every calc-field's SQL translation. Notable cases
+  it pins: the FIXED LOD (`YTD Revenue` → window fn, flagged *defined-but-unused*),
+  ratio-of-aggregate measures (Gross Margin Pct, Return Rate), the two bin calcs
+  (Customer Value Tier, Ship Speed Category), `Region` resolving to CUSTOMER_DIM
+  (not STORE_DIM), and the Region **dashboard filter action** correctly treated as
+  interactivity rather than a SQL `WHERE`.
+- `golden/phase2-cells.json` — *not yet built* (Phase-2 target).
+
 ## Parity ground truth
 
 Upstream live run recorded strict chart parity **5/5** — Revenue by Region,
