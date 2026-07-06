@@ -49,8 +49,8 @@ value gap is a real bug, not "drift." Drift tolerance applies only to
 `.hyper`-extract workbooks (frozen snapshots).
 
 Goldens are added incrementally — a case can ship input + parity ground truth
-before its `golden/` exists. `orders-overview` is the first case to get goldens
-(broadest coverage, clean parity).
+before its `golden/` exists. `orders-overview` is the first case with a Phase-1
+golden (`golden/phase1-sql.json`); its Phase-2 golden and the other cases follow.
 
 ## Cases
 

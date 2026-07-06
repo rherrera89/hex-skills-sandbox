@@ -1,0 +1,149 @@
+{
+  "case": "orders-overview",
+  "phase": 1,
+  "generated_from": "workbook-content.twb",
+  "description": "Expected Phase-1 (code conversion) output: the consolidated warehouse SQL that feeds every worksheet, plus the calc-field translations. This is the regression target — a fresh agent run's Phase-1 output should match this.",
+  "dialect": "snowflake",
+  "column_names_note": "The .twb is a published Virtual Connection, so its physical column names are GUIDs behind the connection. Column names below are the human-readable captions from the datasource metadata, UPPER-cased as a stand-in; a real run resolves the true warehouse names from the published datasource (see connection-mapping.md). What is authoritative here is the LOGIC: which tables, which joins, which aggregation, and each calc-field's SQL.",
+
+  "datasource": {
+    "model": "relationship (single federated data source over the CSA retail star)",
+    "tables_used": {
+      "ORDER_FACT": "fact (order line grain)",
+      "CUSTOMER_DIM": "dim (Region, Lifetime Revenue)",
+      "PRODUCT_DIM": "dim (Category)"
+    },
+    "tables_defined_but_unused_by_migrated_worksheets": ["STORE_DIM", "PROMO_DIM", "DATE_DIM", "DATE_DIM (role-playing 2)", "DIM_TIME"],
+    "relationships_used": [
+      {"left": "ORDER_FACT", "right": "CUSTOMER_DIM", "on": "CUSTOMER_KEY", "cardinality": "many_to_one", "join": "LEFT"},
+      {"left": "ORDER_FACT", "right": "PRODUCT_DIM", "on": "PRODUCT_KEY", "cardinality": "many_to_one", "join": "LEFT"}
+    ],
+    "field_resolution_gotcha": "\"Region\" is a caption in BOTH CUSTOMER_DIM and STORE_DIM. The worksheets use the CUSTOMER_DIM one (resolved by internal field id, not caption). A caption-only match would silently pick the wrong table. See gotchas.md (field-name resolution)."
+  },
+
+  "calc_fields": {
+    "Customer Value Tier": {
+      "role": "dimension",
+      "tableau": "IF [Lifetime Revenue] >= 5000 THEN \"Platinum\" ELSEIF [Lifetime Revenue] >= 2000 THEN \"Gold\" ELSEIF [Lifetime Revenue] >= 500 THEN \"Silver\" ELSE \"Bronze\" END",
+      "source": "CUSTOMER_DIM.LIFETIME_REVENUE",
+      "sql": "CASE WHEN c.LIFETIME_REVENUE >= 5000 THEN 'Platinum' WHEN c.LIFETIME_REVENUE >= 2000 THEN 'Gold' WHEN c.LIFETIME_REVENUE >= 500 THEN 'Silver' ELSE 'Bronze' END",
+      "status": "SQL",
+      "used_by": ["Gross Margin % by Customer Value Tier"]
+    },
+    "Ship Speed Category": {
+      "role": "dimension",
+      "tableau": "IF [Days To Ship] <= 2 THEN \"Express (1-2 days)\" ELSEIF [Days To Ship] <= 5 THEN \"Standard (3-5 days)\" ELSEIF [Days To Ship] <= 10 THEN \"Economy (6-10 days)\" ELSE \"Slow (10+ days)\" END",
+      "source": "ORDER_FACT.DAYS_TO_SHIP",
+      "sql": "CASE WHEN f.DAYS_TO_SHIP <= 2 THEN 'Express (1-2 days)' WHEN f.DAYS_TO_SHIP <= 5 THEN 'Standard (3-5 days)' WHEN f.DAYS_TO_SHIP <= 10 THEN 'Economy (6-10 days)' ELSE 'Slow (10+ days)' END",
+      "status": "SQL",
+      "used_by": ["Gross Revenue by Ship Speed Category", "Return Rate by Ship Speed Category"]
+    },
+    "Gross Margin Pct": {
+      "role": "measure (ratio of aggregates)",
+      "tableau": "IIF(SUM([Gross Revenue]) != 0, SUM([Gross Profit]) / SUM([Gross Revenue]), 0)",
+      "sql": "IFF(SUM(f.GROSS_REVENUE) <> 0, SUM(f.GROSS_PROFIT) / SUM(f.GROSS_REVENUE), 0)",
+      "status": "SQL",
+      "used_by": ["Gross Margin % by Customer Value Tier"],
+      "note": "Ratio of two aggregates — computed at the chart's grain. IIF->IFF; keeps Tableau's 0-when-denominator-0 behavior (NULLIF would give NULL instead)."
+    },
+    "Return Rate": {
+      "role": "measure (ratio of aggregates)",
+      "tableau": "SUM([Is Returned]) / COUNT([Order Id])",
+      "sql": "SUM(f.IS_RETURNED) / COUNT(f.ORDER_ID)",
+      "status": "SQL",
+      "used_by": ["Return Rate by Ship Speed Category"],
+      "note": "COUNT (not COUNTD). Assumes IS_RETURNED is numeric 0/1; if the warehouse column is BOOLEAN, use SUM(CASE WHEN f.IS_RETURNED THEN 1 ELSE 0 END)."
+    },
+    "Distinct count of Order Id": {
+      "role": "measure",
+      "tableau": "COUNTD([Order Id])",
+      "sql": "COUNT(DISTINCT f.ORDER_ID)",
+      "status": "SQL",
+      "used_by": ["Order Channel vs Ship Method (pie: Category x COUNTD)"]
+    },
+    "Gross Revenue (base measure)": {
+      "role": "measure",
+      "tableau": "SUM([Gross Revenue])",
+      "sql": "SUM(f.GROSS_REVENUE)",
+      "status": "SQL",
+      "used_by": ["Revenue by Region", "Gross Revenue by Ship Speed Category", "Monthly Revenue Trend"]
+    },
+    "YTD Revenue": {
+      "role": "measure (FIXED LOD)",
+      "tableau": "{FIXED [Year] : SUM([Net Revenue])}",
+      "sql": "SUM(f.NET_REVENUE) OVER (PARTITION BY d.YEAR)",
+      "status": "SQL-window (defined, UNUSED)",
+      "used_by": [],
+      "note": "Defined in the data source but not placed on any migrated worksheet. Do NOT build it into the dashboard SQL (build only what's used). Carry it to the data-source guide / semantic layer as the canonical YTD metric. LOD -> window per tableau-semantics.md; [Year] is DATE_DIM.YEAR, so this form also needs the DATE_DIM join, which the migrated charts don't otherwise require."
+    },
+    "Promo ROI": {
+      "role": "measure",
+      "tableau": "(SUM([Net Revenue]) - SUM([Promo Cost])) / IIF(SUM([Promo Cost]) != 0, SUM([Promo Cost]), 1)",
+      "sql": "(SUM(f.NET_REVENUE) - SUM(pr.PROMO_COST)) / IFF(SUM(pr.PROMO_COST) <> 0, SUM(pr.PROMO_COST), 1)",
+      "status": "SQL (defined, UNUSED)",
+      "used_by": [],
+      "note": "Unused by migrated worksheets; needs the PROMO_DIM join. Carry to the guide, don't build into the dashboard SQL."
+    },
+    "Year Filter": {
+      "role": "constant",
+      "tableau": "2023",
+      "sql": "2023",
+      "status": "SQL (constant, UNUSED)",
+      "used_by": []
+    }
+  },
+
+  "clusters": [
+    {
+      "id": "orders_line",
+      "rationale": "All 6 migrated worksheets sit on the same star at order-line grain with no static data-source filter, so they consolidate into ONE cell. Build at the finest grain any chart needs (line rows — required for COUNTD(Order Id) and the ratio measures); each chart aggregates from this dataframe in Phase 2. Join only the tables actually used (ORDER_FACT + CUSTOMER_DIM + PRODUCT_DIM).",
+      "worksheets": [
+        "Revenue by Region",
+        "Gross Margin % by Customer Value Tier",
+        "Gross Revenue by Ship Speed Category",
+        "Return Rate by Ship Speed Category",
+        "Order Channel vs Ship Method",
+        "Monthly Revenue Trend"
+      ],
+      "base_tables": ["ORDER_FACT", "CUSTOMER_DIM", "PRODUCT_DIM"],
+      "grain": "order line (one ORDER_FACT row)",
+      "sql": "SELECT\n  f.ORDER_ID,\n  f.GROSS_REVENUE,\n  f.GROSS_PROFIT,\n  f.NET_REVENUE,\n  f.IS_RETURNED,\n  f.ORDER_DATE,\n  c.REGION,\n  p.CATEGORY,\n  CASE WHEN f.DAYS_TO_SHIP <= 2 THEN 'Express (1-2 days)'\n       WHEN f.DAYS_TO_SHIP <= 5 THEN 'Standard (3-5 days)'\n       WHEN f.DAYS_TO_SHIP <= 10 THEN 'Economy (6-10 days)'\n       ELSE 'Slow (10+ days)' END AS SHIP_SPEED_CATEGORY,\n  CASE WHEN c.LIFETIME_REVENUE >= 5000 THEN 'Platinum'\n       WHEN c.LIFETIME_REVENUE >= 2000 THEN 'Gold'\n       WHEN c.LIFETIME_REVENUE >= 500 THEN 'Silver'\n       ELSE 'Bronze' END AS CUSTOMER_VALUE_TIER\nFROM ORDER_FACT f\nLEFT JOIN CUSTOMER_DIM c ON f.CUSTOMER_KEY = c.CUSTOMER_KEY\nLEFT JOIN PRODUCT_DIM p ON f.PRODUCT_KEY = p.PRODUCT_KEY",
+      "feeds": {
+        "Revenue by Region": {"dims": ["REGION"], "measure": "SUM(GROSS_REVENUE)", "chart": "bar"},
+        "Gross Margin % by Customer Value Tier": {"dims": ["CUSTOMER_VALUE_TIER"], "measure": "IFF(SUM(GROSS_REVENUE)<>0, SUM(GROSS_PROFIT)/SUM(GROSS_REVENUE), 0)", "chart": "bar", "measure_kind": "ratio-of-aggregates", "render": "companion_sql:gross_margin_pct_by_tier (EXPLORE can't aggregate a ratio)"},
+        "Gross Revenue by Ship Speed Category": {"dims": ["SHIP_SPEED_CATEGORY"], "measure": "SUM(GROSS_REVENUE)", "chart": "bar"},
+        "Return Rate by Ship Speed Category": {"dims": ["SHIP_SPEED_CATEGORY"], "measure": "SUM(IS_RETURNED)/COUNT(ORDER_ID)", "chart": "bar", "measure_kind": "ratio-of-aggregates", "render": "companion_sql:return_rate_by_ship_speed"},
+        "Order Channel vs Ship Method": {"dims": ["CATEGORY"], "measure": "COUNT(DISTINCT ORDER_ID)", "chart": "pie", "note": "Sheet name is stale; the XML encodings are color=Category, size=COUNTD(Order Id) — the .twb is source of truth."},
+        "Monthly Revenue Trend": {"dims": ["DATE_TRUNC('month', ORDER_DATE)"], "measure": "SUM(GROSS_REVENUE)", "chart": "line", "note": "date stays a DATE; apply month granularity as the chart truncUnit (see tableau-semantics.md dates rule)."}
+      },
+      "dependent_sql": [
+        {
+          "id": "gross_margin_pct_by_tier",
+          "reason": "Ratio-of-aggregates — a Hex EXPLORE/METRIC aggregates ONE column with a built-in aggregation and cannot compute SUM(a)/SUM(b). Pre-aggregate to the chart grain in a thin SQL cell that reads the shared dataframe (no re-query of the base), then plot the ratio column.",
+          "sql": "SELECT CUSTOMER_VALUE_TIER,\n       IFF(SUM(GROSS_REVENUE) <> 0, SUM(GROSS_PROFIT) / SUM(GROSS_REVENUE), 0) AS GROSS_MARGIN_PCT\nFROM {{orders_line}}\nGROUP BY CUSTOMER_VALUE_TIER",
+          "feeds": {"Gross Margin % by Customer Value Tier": {"dims": ["CUSTOMER_VALUE_TIER"], "measure": "GROSS_MARGIN_PCT (plot directly; agg Max/Avg over the one row per group = identity)", "displayFormat": "percent"}}
+        },
+        {
+          "id": "return_rate_by_ship_speed",
+          "reason": "Ratio-of-aggregates (see above).",
+          "sql": "SELECT SHIP_SPEED_CATEGORY,\n       SUM(IS_RETURNED) / COUNT(ORDER_ID) AS RETURN_RATE\nFROM {{orders_line}}\nGROUP BY SHIP_SPEED_CATEGORY",
+          "feeds": {"Return Rate by Ship Speed Category": {"dims": ["SHIP_SPEED_CATEGORY"], "measure": "RETURN_RATE (plot directly)", "displayFormat": "percent"}}
+        }
+      ]
+    }
+  ],
+
+  "interactivity": [
+    {
+      "type": "filter_action",
+      "field": "Region (CUSTOMER_DIM)",
+      "scope": "dashboard",
+      "note": "Every worksheet carries a categorical filter on [Action (Region)] with groupfilter function='level-members' — this is a Tableau dashboard FILTER ACTION (interactive cross-filter), NOT a static data filter. Do NOT emit it as a SQL WHERE clause. In Hex it maps to cross-filtering / an input parameter, handled in the app layer (Phase 2), not the shared SQL."
+    }
+  ],
+
+  "phase2_flags": [
+    "RESOLVED (verified against hex-file-schema.json ExploreField/MetricCellConfig): a Hex EXPLORE/METRIC aggregates ONE column with a built-in aggregation (Sum/Avg/Count/CountDistinct/Min/Max/Median/StdDev/Variance) — there is NO per-field formula/expression and NO calculated-column mechanism. Ratio-of-aggregate measures are therefore handled by the companion grouped SQL in clusters[].dependent_sql (which reads the shared dataframe, preserving consolidation), OR by a semantic-model MEASURE (fieldType MEASURE + semanticProjectId; not CLI-authorable today). Additive measures (Sum/Count/CountDistinct) still ride the shared line-grain cell via EXPLORE aggregation.",
+    "Monthly Revenue Trend: keep ORDER_DATE as a DATE; set the chart's truncUnit to month, don't TO_CHAR in SQL."
+  ]
+}
