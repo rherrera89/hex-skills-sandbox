@@ -1,6 +1,7 @@
-# Tableau migration corpus (the "Tableau Zoo")
+# Tableau Zoo
 
-Real and hand-authored Tableau workbooks that stress every construct the
+The regression set for the `tableau-migration` skill — real and hand-authored
+Tableau workbooks that stress every construct the
 `tableau-migration` skill has to handle — LOD, window/table calcs, blends,
 stories, crosstabs, parameters, tricky column names. Use them as a **regression
 set** so parser and builder changes can be smoke-tested without a live Tableau
@@ -17,7 +18,7 @@ inputs and the numbers Tableau actually rendered.
 ## Layout
 
 ```
-corpus/tableau/<case>/
+tableau-zoo/<case>/
   workbook-content.twb        # INPUT — the Tableau workbook XML (source of truth)
   signals.json | views/*.csv  # PARITY GROUND TRUTH — the values Tableau rendered
   get-workbook.json           # view name → id map (offline discovery aid)

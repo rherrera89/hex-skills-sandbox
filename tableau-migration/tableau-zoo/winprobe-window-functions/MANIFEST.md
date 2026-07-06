@@ -1,4 +1,4 @@
-# tableau / winprobe-window-functions
+# winprobe-window-functions
 
 Eight worksheets, one Tableau window/table-calc family each, over a retail
 `ORDER_FACT` demo warehouse. The regression case for **Tableau table calcs →

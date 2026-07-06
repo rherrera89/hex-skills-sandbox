@@ -1,6 +1,6 @@
 # Attribution
 
-The Tableau fixtures under `corpus/tableau/*/` — `workbook-content.twb`,
+The Tableau fixtures under `tableau-zoo/*/` — `workbook-content.twb`,
 `signals.json`, `views/*.csv`, `get-workbook.json`, `master-columns.json` — are
 borrowed from **sigma-migration-skills** by Thomas Wells
 (https://github.com/twells89/sigma-migration-skills), used under the MIT License

@@ -1,4 +1,4 @@
-# tableau / structural-workarounds
+# structural-workarounds
 
 A hand-authored minimal `.twb` exercising three *structural* Tableau features
 plus a set of easy-to-botch calc translations. Synthetic XML modeled on real
