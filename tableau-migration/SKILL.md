@@ -19,6 +19,7 @@ A CLI-driven migration where **Claude is the porting agent** (not Hex's in-produ
 - [`reference/connection-mapping.md`](reference/connection-mapping.md) — resolve the Tableau → Hex data connection.
 - [`reference/tableau-semantics.md`](reference/tableau-semantics.md) — **Phase 1 (code conversion):** Tableau construct → warehouse SQL/Python (calcs, LOD, window calcs, params, sets, RLS), the per-dialect docs step, and SQL consolidation into shared cells.
 - [`reference/building-cells.md`](reference/building-cells.md) — **Phase 2 (viz build-out):** native-cell template library + styling map.
+- [`reference/datasource-guide.md`](reference/datasource-guide.md) — author a Hex guide mirroring the Tableau data source (semantic layer for Threads/agent), published via `hex guide`.
 - [`reference/gotchas.md`](reference/gotchas.md) — parsing correctness rules, Hex CLI quirks, app layout.
 
 ## What you need before starting
@@ -97,6 +98,8 @@ Why: the agent is **blind to rendered output**, so a human check on a tiny first
 
 6. **Run and QA.** `hex project run` (async — poll `run status`), then hand the project link to the customer for visual QA. Set the app layout via export/import if desired → [`reference/gotchas.md`](reference/gotchas.md).
 
+7. **Author a Hex guide for the data source (once per data source).** Ship a semantic layer, not just charts: mirror the Tableau data source as a retrieved Hex guide (canonical metrics + join patterns + migration risk areas) so the customer's team can self-serve in Threads / the Notebook Agent. Built from the Phase-1 parse, reused across every dashboard on that data source, published headless via `hex guide preview`/`publish`. Template + what-to-keep-out → [`reference/datasource-guide.md`](reference/datasource-guide.md).
+
 ---
 
 # Batch migration (folder loop)
@@ -105,7 +108,7 @@ Point at a folder of `.twb` files and migrate them as a set. Three phases:
 
 **Phase 1 — parallel, read-only (safe to fan out):** scan → parse each workbook (worksheets, marks, calcs, filters at all scopes, datasource) → resolve each connection (fetch `.tdsx` if `sqlproxy`) → **cluster worksheets into shared queries** → produce a per-workbook **plan** (connection, `sql_cell → [charts]` clusters, chart specs). **Batch every ambiguous-connection question into ONE ask** — don't stop per workbook.
 
-**Phase 2 — sequential, mutating (one workbook at a time):** run the *Porting a workbook* loop for each. **Write status to the manifest after each** so the batch is resumable and fail-soft — a bad workbook is marked `failed` and skipped, not fatal.
+**Phase 2 — sequential, mutating (one workbook at a time):** run the *Porting a workbook* loop for each. **Write status to the manifest after each** so the batch is resumable and fail-soft — a bad workbook is marked `failed` and skipped, not fatal. **Author each data source's guide once** (step 7) — workbooks sharing a data source share one guide; refresh it, don't duplicate.
 
 **Phase 3 — verify (one batch):** collect all project links and present them for human visual QA in a single pass.
 
@@ -132,7 +135,7 @@ On rerun, skip any workbook whose `status` is `verified` (or `run`, if re-verify
 
 # Files in this skill
 - `SKILL.md` — this playbook (workflow spine).
-- `reference/` — on-demand detail: `connection-mapping.md`, `tableau-semantics.md` (Phase 1), `building-cells.md` (Phase 2), `gotchas.md`, and `hex-file-schema.json` (validate exports before import).
+- `reference/` — on-demand detail: `connection-mapping.md`, `tableau-semantics.md` (Phase 1), `building-cells.md` (Phase 2), `datasource-guide.md` (semantic-layer guide), `gotchas.md`, and `hex-file-schema.json` (validate exports before import).
 - `templates/` — clone-and-override native-cell configs (METRIC + EXPLORE bar/line/area/pie/scatter/faceted/pivot, `_filter_snippet.json`).
 - `scripts/tableau_fetch.py` — fetch `.twb`/`.twbx` from Tableau Cloud/Server (`--list` / `--name` / `--project`).
 - `credentials/tableau.env.example` — template for Tableau PAT + pod + site. Copy to `tableau.env` (gitignored).
