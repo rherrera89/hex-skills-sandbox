@@ -1,9 +1,9 @@
-# tableau / orders-overview
+# orders-overview
 
 The standard "Orders Overview" demo dashboard on a retail Snowflake star
 (ORDER_FACT + CUSTOMER_DIM / PRODUCT_DIM / STORE_DIM / DATE_DIM / PROMO_DIM /
 DIM_TIME). A real `.twb` (204 KB) — the broadest single-workbook coverage in the
-corpus, and the first case to get Hex goldens.
+Zoo, and the first case to get Hex goldens.
 
 ## Artifacts
 

@@ -1,4 +1,4 @@
-# tableau / partner-crosstab-controls
+# partner-crosstab-controls
 
 A hand-authored minimal `.twb` reproducing three real-world regressions from a
 large partner-bookings workbook: crosstab detection, quick-filter column-name
