@@ -20,7 +20,8 @@ This drops the skill into `.claude/skills/tableau-migration/` (secrets and local
 | Path | What |
 |------|------|
 | `SKILL.md` | The playbook — lean workflow spine (Claude reads this to run a migration) |
-| `reference/` | On-demand detail: `connection-mapping.md`, `building-cells.md` (SQL + charts), `gotchas.md`, `hex-file-schema.json` |
+| `reference/` | On-demand detail: `connection-mapping.md`, `tableau-semantics.md` (Phase 1: Tableau → SQL/Python + consolidation), `building-cells.md` (Phase 2: native charts + styling), `datasource-guide.md` (semantic-layer guide for Threads/agent), `gotchas.md`, `hex-file-schema.json` |
+| `corpus/` | Regression fixtures — the "Tableau Zoo" (`.twb` inputs + parity ground truth) |
 | `templates/` | Clone-and-override native Hex cell configs (METRIC, EXPLORE variants) |
 | `scripts/tableau_fetch.py` | Fetch `.twb`/`.twbx` from Tableau Cloud/Server |
 | `credentials/` | `tableau.env.example` (copy → `tableau.env`, gitignored) |

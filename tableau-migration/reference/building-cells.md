@@ -1,29 +1,21 @@
-# Building Hex cells (SQL strategy + native chart cells)
+# Building Hex cells (Phase 2: SQL → native chart cells)
 
-How to turn a parsed Tableau workbook into Hex cells: first decide the SQL shape (consolidate), then build the chart/KPI cells by cloning templates.
+How to turn the Phase-1 SQL cells into native Hex chart/KPI cells by cloning
+templates. (The SQL shape itself — clustering worksheets into shared queries —
+is a Phase-1 concern; see the "Consolidate into shared SQL cells" section in
+[`tableau-semantics.md`](tableau-semantics.md).)
 
----
-
-## SQL consolidation — one query feeds many charts
-
-**Mental model:** In Tableau, a dashboard's worksheets almost all sit on **one data source**; each worksheet is just a different viz + shelves + worksheet filter over the same rows. Hex mirrors this: **one SQL cell = the "data source"**, and many EXPLORE/METRIC cells read that same dataframe. Because **EXPLORE aggregates and filters over its input dataframe**, you do *not* need a pre-aggregated SQL per chart. One-SQL-per-chart is the anti-pattern — it duplicates logic, bloats the project, and drifts out of sync when a calc changes.
-
-**Cluster worksheets into shared queries (do this in planning).** Group worksheets that share ALL of:
-- the same **base table(s) + join shape**,
-- the same **data-source + context/workbook filters** (they apply to every sheet on the datasource anyway),
-- a **compatible grain** — build the SQL at the **finest grain any chart in the group needs** (plus its date/id keys); each EXPLORE rolls up from there.
-
-Then emit **one SQL cell per cluster**, selecting the **union of every column + measure** the cluster's charts reference. Point each chart's EXPLORE at that dataframe and let it pick fields / aggregation / worksheet-filter.
-
-**Add calculated columns once, in the shared SQL.** If two charts need the same derived field (a ratio, a bucket, a `CASE`), compute it in the shared query — never fork the query just to add a column.
-
-**Keep queries separate when:**
-- **different base table or join shape** — no shared grain to stand on;
-- one chart needs **row-level detail** while another needs a heavy pre-aggregation — sharing would force a huge detail dataframe; split if the detail set is large;
-- a chart carries a **data-source-level** filter the others don't (worksheet-level filters do *not* force a split — they live on the cell);
-- a **KPI/METRIC** that's a single scalar off an unrelated aggregation — a tiny dedicated query is cheaper and clearer than rolling it out of a wide df.
-
-**Make it reviewable:** in the plan/manifest, record the `sql_cell → [charts]` mapping. Target: the **fewest SQL cells that don't force an incompatible grain** — usually 1–3 per dashboard, not one per worksheet.
+> ⚠️ **What EXPLORE/METRIC can and can't aggregate.** A Hex EXPLORE chart cell
+> and the METRIC (KPI) cell aggregate **one column** with a single built-in
+> aggregation (`Sum, Avg, Count, CountDistinct, Min, Max, Median, StdDev,
+> Variance…`). There is **no per-field formula / calculated-measure** in the cell
+> spec. So a **ratio of aggregates** (`SUM(a)/SUM(b)` — margin %, return rate) or
+> any derived measure must be **pre-computed in SQL** — a thin companion query
+> grouped to the chart's grain that reads the shared dataframe and emits the ratio
+> as a column, which the chart then plots (see the "keep separate when" ratio rule
+> in `tableau-semantics.md`). The higher-fidelity alternative is a semantic-model
+> MEASURE. Additive measures (Sum/Count/CountDistinct) aggregate fine in EXPLORE
+> straight off the shared cell.
 
 ---
 
