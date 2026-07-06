@@ -44,7 +44,7 @@ Real, valid exported cell configs live in `templates/`. **Clone one, override a 
 5. Put the cell in `cells[]`, add a matching `appLayout` element, import, then `hex project run`.
 6. **Validate against the Hex file-format JSON Schema before importing — but know it's necessary, not sufficient.**
    - **Live, while editing (recommended):** name the working file `*.hex.yaml` and install the **[RedHat YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)**; it auto-loads the schema from **[SchemaStore](https://www.schemastore.org/)** (filename-based detection) for real-time validation, key/value autocomplete, and hover docs on every field — the fastest way to author correct YAML and understand the format. (Setup is a prerequisite in `SKILL.md`.)
-   - **CLI / CI:** validate against the vendored `reference/hex-file-schema.json` (or `https://static.hex.site/hex-file-schema.json`).
+   - **CLI / CI:** validate against the hosted schema `https://static.hex.site/hex-file-schema.json` (fetch it at run time — it tracks the current Hex format; don't vendor a copy that drifts).
    - **Necessary, not sufficient:** a spec can pass schema validation and still be rejected by the import API (e.g. METRIC `valueAggregate`). If `hex project import` returns "unknown API error", bisect: import the base export (round-trips clean), then add cells back one at a time to isolate the offending cell.
 
 ### Feature references (how to mirror Tableau)

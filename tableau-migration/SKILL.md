@@ -25,7 +25,7 @@ A CLI-driven migration where **Claude is the porting agent** (not Hex's in-produ
 ## What you need before starting
 - **Tableau access** — a Personal Access Token (for `scripts/tableau_fetch.py`) *or* exported `.twb`/`.twbx` files.
 - **Hex CLI** installed and authed, and the **target Hex data connection** the migrated cells will query.
-- **Hex-YAML editor validation (install this).** You'll hand-edit the exported project YAML (native cells, app layout). Install the **[RedHat YAML VS Code extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)** — it auto-fetches the official **Hex file-format JSON Schema from [SchemaStore](https://www.schemastore.org/)** and gives you live validation, key/value autocomplete, and hover docs for the whole Hex YAML surface. **Schema detection is filename-based: name the file `*.hex.yaml`** and the schema applies automatically (opening one also prompts the extension install). This is the fastest way to understand and get the YAML right before importing. (The schema is also vendored at [`reference/hex-file-schema.json`](reference/hex-file-schema.json) for CLI/CI validation — see `building-cells.md`.)
+- **Hex-YAML editor validation (install this).** You'll hand-edit the exported project YAML (native cells, app layout). Install the **[RedHat YAML VS Code extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)** — it auto-fetches the official **Hex file-format JSON Schema from [SchemaStore](https://www.schemastore.org/)** and gives you live validation, key/value autocomplete, and hover docs for the whole Hex YAML surface. **Schema detection is filename-based: name the file `*.hex.yaml`** and the schema applies automatically (opening one also prompts the extension install). This is the fastest way to understand and get the YAML right before importing. (For CLI/CI, validate against the hosted schema `https://static.hex.site/hex-file-schema.json` — see `building-cells.md`.)
 - `credentials/tableau.env` filled in from `credentials/tableau.env.example` (pod URL + site + PAT). Gitignored.
 
 ## Workflow at a glance
@@ -136,9 +136,9 @@ On rerun, skip any workbook whose `status` is `verified` (or `run`, if re-verify
 
 # Files in this skill
 - `SKILL.md` — this playbook (workflow spine).
-- `reference/` — on-demand detail: `connection-mapping.md`, `tableau-semantics.md` (Phase 1), `building-cells.md` (Phase 2), `datasource-guide.md` (semantic-layer guide), `gotchas.md`, and `hex-file-schema.json` (validate exports before import).
+- `reference/` — on-demand detail: `connection-mapping.md`, `tableau-semantics.md` (Phase 1), `building-cells.md` (Phase 2), `datasource-guide.md` (semantic-layer guide), `gotchas.md`.
 - `templates/` — clone-and-override native-cell configs (METRIC + EXPLORE bar/line/area/pie/scatter/faceted/pivot, `_filter_snippet.json`).
+- `tableau-zoo/` — regression fixtures (`.twb` inputs + parity ground truth + Hex goldens).
 - `scripts/tableau_fetch.py` — fetch `.twb`/`.twbx` from Tableau Cloud/Server (`--list` / `--name` / `--project`).
 - `credentials/tableau.env.example` — template for Tableau PAT + pod + site. Copy to `tableau.env` (gitignored).
-- `REFERENCE_PROJECT_CHECKLIST.md` — checklist for the reference "zoo" projects.
 - `tableau_exports/`, `working/` — local downloads + scratch YAML (gitignored).

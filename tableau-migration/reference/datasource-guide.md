@@ -80,9 +80,6 @@ source evolves.
 
 ## Compose with the other context assets (optional, higher fidelity)
 
-The guide is the fast, headless win. For a fuller semantic layer, pair it with
-the other Hex context categories (all covered by the `hex-context-best-practices`
-skill): **endorse** the migrated tables, add **warehouse descriptions** for
-column meanings, and — for metrics that must be exact every time — codify a
-**semantic model** (YAML). Those raise fidelity but aren't required to ship the
-guide.
+The guide is the fast, headless win. For a fuller semantic layer — endorsements,
+warehouse descriptions, or a YAML semantic model for must-be-exact metrics — use
+the **`hex-context-best-practices`** skill. Not required to ship the guide.
