@@ -5,6 +5,18 @@ templates. (The SQL shape itself — clustering worksheets into shared queries �
 is a Phase-1 concern; see the "Consolidate into shared SQL cells" section in
 [`tableau-semantics.md`](tableau-semantics.md).)
 
+> ⚠️ **What EXPLORE/METRIC can and can't aggregate.** A Hex EXPLORE chart cell
+> and the METRIC (KPI) cell aggregate **one column** with a single built-in
+> aggregation (`Sum, Avg, Count, CountDistinct, Min, Max, Median, StdDev,
+> Variance…`). There is **no per-field formula / calculated-measure** in the cell
+> spec. So a **ratio of aggregates** (`SUM(a)/SUM(b)` — margin %, return rate) or
+> any derived measure must be **pre-computed in SQL** — a thin companion query
+> grouped to the chart's grain that reads the shared dataframe and emits the ratio
+> as a column, which the chart then plots (see the "keep separate when" ratio rule
+> in `tableau-semantics.md`). The higher-fidelity alternative is a semantic-model
+> MEASURE. Additive measures (Sum/Count/CountDistinct) aggregate fine in EXPLORE
+> straight off the shared cell.
+
 ---
 
 ## Native-cell templates (clone-and-override library)

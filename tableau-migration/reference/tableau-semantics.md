@@ -258,6 +258,13 @@ Then emit **one SQL cell per cluster**, selecting the **union of every column +
 measure** the cluster's charts reference. Add shared calculated columns **once**
 in that query — never fork a query just to add a column.
 
+**Build only what's *used*.** Select/translate only the fields and calcs a
+migrated worksheet actually references. A data source usually defines many calc
+fields, measures, and tables that **no** migrated worksheet places on a shelf —
+don't build those into the dashboard SQL. Carry unused-but-valuable metrics to
+the **data-source guide / semantic layer** instead (see `datasource-guide.md`),
+where they power self-serve Q&A without bloating the dashboard queries.
+
 **Keep queries separate when:**
 - **different base table or join shape** — no shared grain to stand on;
 - one chart needs **row-level detail** while another needs a heavy
@@ -265,7 +272,15 @@ in that query — never fork a query just to add a column.
 - a chart carries a **data-source-level** filter the others don't (worksheet-level
   filters do *not* force a split — they live on the Phase-2 cell);
 - a **scalar KPI** off an unrelated aggregation — a tiny dedicated query is
-  cheaper than rolling it out of a wide df.
+  cheaper than rolling it out of a wide df;
+- a **ratio-of-aggregates / non-additive measure** (margin %, return rate,
+  conversion rate). A Hex EXPLORE/METRIC aggregates a **single column** with one
+  built-in aggregation — it **cannot** compute `SUM(a)/SUM(b)`. Emit a thin
+  **companion grouped SQL that reads the shared dataframe** and pre-computes the
+  ratio: `SELECT dim, SUM(a)/SUM(b) AS ratio FROM {{shared_df}} GROUP BY dim`;
+  the chart then plots the `ratio` column directly. Because it *reads* the
+  consolidated cell, it doesn't fork the base query — consolidation holds.
+  (Higher-fidelity alternative: define the ratio as a semantic-model MEASURE.)
 
 **Make it reviewable:** record the `sql_cell → [charts]` mapping in the
 plan/manifest. Target the **fewest SQL cells that don't force an incompatible

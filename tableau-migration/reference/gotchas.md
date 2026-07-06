@@ -6,7 +6,7 @@ Consult these when you hit the relevant step. The parsing rules are correctness 
 
 ## Parsing correctness rules
 
-- **Resolve fields by definition, not by caption.** Duplications and renames in Tableau can make a field's caption misleading — resolve each field through its encoding → internal name → underlying formula/column, so you port what it actually computes, not what it's labeled.
+- **Resolve fields by definition, not by caption.** Duplications and renames in Tableau can make a field's caption misleading — resolve each field through its encoding → internal name → underlying formula/column, so you port what it actually computes, not what it's labeled. This includes the case where the **same caption exists on two joined tables** (e.g. a `Region` on both a customer dimension and a store dimension) — only the internal field id resolves which table the worksheet actually reads. A caption-only match silently picks the wrong table and the wrong numbers.
 - **Sweep ALL filter scopes.** Tableau filters live at four scopes:
   - **worksheet** (`<worksheet>//filter`) — stays **per-chart** (an EXPLORE cell filter); does **not** fork the query.
   - **dashboard**
@@ -15,6 +15,7 @@ Consult these when you hit the relevant step. The parsing rules are correctness 
 
   Context/workbook + data-source filters apply to **every** sheet on that datasource — push them into the shared query's `WHERE`. Missing a shared-scope filter silently changes totals.
   - *Relative-date / date-range filters:* translate the window deliberately. Relative windows are defined by period offsets that **include the current period**, so an offset can span one more calendar period than the number suggests — work out the actual start/end dates instead of mapping the offset literally, and **sanity-check the resulting totals/row counts** against the source.
+  - ⚠️ *Filter **actions** are not data filters.* A `<filter>` whose column is an `[Action (…)]` field (typically `groupfilter function='level-members'`) is a dashboard **filter action** — interactive cross-filtering between tiles, not a static predicate on the data. Do **not** emit it as a SQL `WHERE`. It maps to Hex interactivity (cross-filter / an input parameter) in the app layer. Baking it into the query silently drops rows.
 - **Preserve field data types in the SQL translation — dates especially.** Keep Tableau date fields as real DATEs end-to-end; don't cast a date to a string (it breaks the chart's date axis). Set the base-axis `dataType: DATE` and carry the pill's granularity as `truncUnit` (`tqr`→`quarter`, `tmn`→`month`, `YEAR()`→`year`), which preserves Hex's date formatting + granularity controls. And **confirm a field's actual type before applying date/number functions** — a field that reads like a date (e.g. a "month" or "period" column) may really be a number or string, so a date function will error or silently mislead.
 - **Maps: no native cell.** Build maps as a Python CODE cell (`px.scatter_geo(df, lat=, lon=, color=, size=, projection="natural earth")`), not an EXPLORE scatter of lat/lon.
 - **Tooltips are aggregate-only** (measures, not text/dimension values) → Tableau's **detail/LOD text dimension has no clean EXPLORE equivalent**. Note the gap, don't hack around it. Per-row point charts needing text granularity → Python cell.
