@@ -17,7 +17,8 @@ A CLI-driven migration where **Claude is the porting agent** (not Hex's in-produ
 
 ## Reference docs (read on demand)
 - [`reference/connection-mapping.md`](reference/connection-mapping.md) — resolve the Tableau → Hex data connection.
-- [`reference/building-cells.md`](reference/building-cells.md) — SQL consolidation strategy + native-cell template library + styling map.
+- [`reference/tableau-semantics.md`](reference/tableau-semantics.md) — **Phase 1 (code conversion):** Tableau construct → warehouse SQL/Python (calcs, LOD, window calcs, params, sets, RLS), the per-dialect docs step, and SQL consolidation into shared cells.
+- [`reference/building-cells.md`](reference/building-cells.md) — **Phase 2 (viz build-out):** native-cell template library + styling map.
 - [`reference/gotchas.md`](reference/gotchas.md) — parsing correctness rules, Hex CLI quirks, app layout.
 
 ## What you need before starting
@@ -75,7 +76,7 @@ Why: the agent is **blind to rendered output**, so a human check on a tiny first
 
 # Porting a workbook (the core per-workbook loop)
 
-1. **Resolve the data connection.** Match on metadata (type + database), not names/hosts. Fetch the published `.tdsx` if the workbook uses `sqlproxy`. Full procedure → [`reference/connection-mapping.md`](reference/connection-mapping.md).
+1. **Resolve the data connection, then load its SQL dialect docs.** Match on metadata (type + database), not names/hosts. Fetch the published `.tdsx` if the workbook uses `sqlproxy`. Full procedure → [`reference/connection-mapping.md`](reference/connection-mapping.md). ⚠️ **Never assume Snowflake** — customers run on all mainstream warehouses. Once you know the warehouse, open its function reference and confirm the syntax for what this workbook uses (`QUALIFY` support, week-start, date-parse tokens, regex/percentile names). Links + the "what actually varies" checklist → [`reference/tableau-semantics.md`](reference/tableau-semantics.md).
 
 2. **Create the Hex project and inject the raw `.twb`.** The XML fits in **one markdown cell** (verified ~121 KB, no chunking) — keeps the source of truth in the project while you port:
    ```bash
@@ -84,10 +85,11 @@ Why: the agent is **blind to rendered output**, so a human check on a tiny first
    ```
    **Keep this `.twb` cell in the notebook, but never add it to the app layout** — it's a working reference for whoever maintains the migration, not stakeholder-facing. (Same for the raw SQL cells; see step 6.)
 
-3. **Parse the XML, then PLAN shared queries — don't default to one SQL per chart.** The `.twb` XML is the **source of truth**; screenshots are QA only. A dashboard's worksheets usually sit on one data source, so **cluster worksheets** that share base table + join + data-source/context filters + a compatible grain into **one SQL cell** (finest grain, union of columns); each chart's EXPLORE aggregates/filters over that dataframe. Strategy + when-to-split → [`reference/building-cells.md`](reference/building-cells.md).
+3. **Parse the XML, then PLAN shared queries — don't default to one SQL per chart.** The `.twb` XML is the **source of truth**; screenshots are QA only. A dashboard's worksheets usually sit on one data source, so **cluster worksheets** that share base table + join + data-source/context filters + a compatible grain into **one SQL cell** (finest grain, union of columns); each chart's EXPLORE aggregates/filters over that dataframe. Strategy + when-to-split → [`reference/tableau-semantics.md`](reference/tableau-semantics.md).
    - ⚠️ **Sweep ALL filter scopes.** Data-source/context/workbook filters apply to every sheet → put in the shared `WHERE`; **worksheet** filters stay per-cell. Missing a shared-scope filter silently changes totals.
    - ⚠️ **Resolve scrambled field names** via encodings → internal-name → caption+formula, never by caption alone.
-   - (Both, plus the relative-date off-by-one, are detailed in [`reference/gotchas.md`](reference/gotchas.md).)
+   - **Translate calcs/LOD/window/params** into the resolved dialect's SQL (LOD → `OVER (PARTITION BY)`; table calcs resolve in SQL, not the chart; params → Hex input cells + Jinja). Full mapping → [`reference/tableau-semantics.md`](reference/tableau-semantics.md).
+   - (The above, plus the relative-date off-by-one, are detailed in [`reference/gotchas.md`](reference/gotchas.md).)
 
 4. **Validate with the run-status oracle.** The Hex CLI can't read cell output — use **COMPLETED-vs-ERRORED** as a boolean oracle to test SQL validity, probe schema, and check type-casts. Fix until COMPLETED.
 
@@ -130,7 +132,7 @@ On rerun, skip any workbook whose `status` is `verified` (or `run`, if re-verify
 
 # Files in this skill
 - `SKILL.md` — this playbook (workflow spine).
-- `reference/` — on-demand detail: `connection-mapping.md`, `building-cells.md`, `gotchas.md`, and `hex-file-schema.json` (validate exports before import).
+- `reference/` — on-demand detail: `connection-mapping.md`, `tableau-semantics.md` (Phase 1), `building-cells.md` (Phase 2), `gotchas.md`, and `hex-file-schema.json` (validate exports before import).
 - `templates/` — clone-and-override native-cell configs (METRIC + EXPLORE bar/line/area/pie/scatter/faceted/pivot, `_filter_snippet.json`).
 - `scripts/tableau_fetch.py` — fetch `.twb`/`.twbx` from Tableau Cloud/Server (`--list` / `--name` / `--project`).
 - `credentials/tableau.env.example` — template for Tableau PAT + pod + site. Copy to `tableau.env` (gitignored).
