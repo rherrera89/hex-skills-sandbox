@@ -25,6 +25,7 @@ A CLI-driven migration where **Claude is the porting agent** (not Hex's in-produ
 ## What you need before starting
 - **Tableau access** — a Personal Access Token (for `scripts/tableau_fetch.py`) *or* exported `.twb`/`.twbx` files.
 - **Hex CLI** installed and authed, and the **target Hex data connection** the migrated cells will query.
+- **Hex-YAML editor validation (install this).** You'll hand-edit the exported project YAML (native cells, app layout). Install the **[RedHat YAML VS Code extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)** — it auto-fetches the official **Hex file-format JSON Schema from [SchemaStore](https://www.schemastore.org/)** and gives you live validation, key/value autocomplete, and hover docs for the whole Hex YAML surface. **Schema detection is filename-based: name the file `*.hex.yaml`** and the schema applies automatically (opening one also prompts the extension install). This is the fastest way to understand and get the YAML right before importing. (The schema is also vendored at [`reference/hex-file-schema.json`](reference/hex-file-schema.json) for CLI/CI validation — see `building-cells.md`.)
 - `credentials/tableau.env` filled in from `credentials/tableau.env.example` (pod URL + site + PAT). Gitignored.
 
 ## Workflow at a glance
