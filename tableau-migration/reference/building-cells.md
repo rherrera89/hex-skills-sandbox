@@ -38,9 +38,9 @@ Real, valid exported cell configs live in `templates/`. **Clone one, override a 
 1. Load the template JSON, assign a **new `cellId`** — import **won't change an existing cell's type**, so native replacements need new ids (then repoint the `appLayout`).
 2. Set `config.dataframe` to the upstream SQL cell's output dataframe.
 3. Rewrite `config.spec.fields[]`: set each field's `value` to the (UPPERCASE Snowflake) column, its `title`, `dataType`, and shared `seriesId`; set `displayFormat`.
-4. For METRIC: set `valueVariableName` (dataframe) + `valueColumn` + `displayFormat`.
+4. For METRIC: it **displays a single value, it does not aggregate.** A METRIC reads one column at one row (`valueColumn` at `valueRowIndex: 0`); `valueAggregate` is **rejected by the import API** (any value — `"SUM"`, `"Sum"` — 500s with an opaque "unknown API error", though it passes JSON-schema validation). So for a computed KPI, feed it a **1-row SQL** and point the METRIC at that: add a small dataframe-SQL cell (`dataFrameCell: true`, `dataConnectionId: null`, e.g. `SELECT SUM(<col>) AS TOTAL FROM <shared_df>`) that pre-aggregates, then set the METRIC's `valueVariableName` = that 1-row dataframe, `valueColumn` = its column, `valueRowIndex: 0`, `valueAggregate: null`, + `displayFormat`. (This is the same companion-SQL move as ratio charts, and why the template ships `valueRowIndex: 0`.)
 5. Put the cell in `cells[]`, add a matching `appLayout` element, import, then `hex project run`.
-6. Validate against `reference/hex-file-schema.json` (or `https://static.hex.site/hex-file-schema.json`) before importing.
+6. **Validate against `reference/hex-file-schema.json` before importing — but know it's necessary, not sufficient.** A spec can pass JSON-schema validation and still be rejected by the import API (e.g. METRIC `valueAggregate`). If `hex project import` returns "unknown API error", bisect: import the base export (round-trips clean), then add cells back one at a time to isolate the offending cell.
 
 ### Feature references (how to mirror Tableau)
 - **Faceting → small-multiples/trellis:** a `config.spec.fields[]` field with `channel: "h-facet"` or `"v-facet"`, `fieldType: "COLUMN"` — use for Tableau worksheets that put a dimension on Rows/Columns to create panels.
