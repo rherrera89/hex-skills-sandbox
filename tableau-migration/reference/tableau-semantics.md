@@ -185,6 +185,11 @@ and any table calc embedded inside a larger expression.
     `'{{ param }}'` makes the tag a literal string (`WHERE region = '{{ param }}'`
     is read as the text `{{ param }}`, not the value). Use `WHERE region =
     {{ param }}` and let Hex handle the typing/quoting.
+  - ⚠️ **Place the input cell UPSTREAM of the SQL that uses it.** Hex runs cells
+    as a dependency graph, so an input parameter must come **before** every cell
+    that references its `{{ var }}` — the consuming cells are downstream. Put
+    input cells at the top (above the shared SQL); an input placed after its
+    consumer leaves the variable unresolved and the run errors. See `gotchas.md`.
 - **Bins** → `FLOOR(x / size) * size`. Note `BinFixed`'s bin **index** is
   **1-based** (`FLOOR(x/size) + 1`) if the workbook uses the index rather than
   the bucket floor.

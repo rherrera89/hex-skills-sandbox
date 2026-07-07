@@ -48,10 +48,31 @@ Real, valid exported cell configs live in `templates/`. **Clone one, override a 
    - **Necessary, not sufficient:** a spec can pass schema validation and still be rejected by the import API (e.g. METRIC `valueAggregate`). If `hex project import` returns "unknown API error", bisect: import the base export (round-trips clean), then add cells back one at a time to isolate the offending cell.
 
 ### Feature references (how to mirror Tableau)
+- **Date axis → a DATE column at a grain, NEVER a numeric proxy.** If a Tableau shelf pill is a **date field**, the Hex field bound to that channel MUST be `dataType: DATE`. Resolve the pill to its **innermost underlying field** and read the **grain from the pill prefix**, then set the axis to the real date column + carry the grain as `truncUnit`:
+  - Prefix → grain: `yr` → `year`, `qtr` → `quarter`, `mn` → `month`, `wk` → `week`, `dy` → `day`; the continuous `t*` forms (`tyr`/`tqr`/`tmn`/`tdy`) are the same grains as a truncated (continuous) date. Example: Tableau `mn:CLOSED_DATE` → Hex base-axis field `CLOSED_DATE`, `dataType: DATE`, `truncUnit: "month"`.
+  - ⚠️ **The trap:** don't bind a numeric column whose *name* matches the grain (e.g. `CLOSED_MONTH`, `ORDER_QUARTER`, a `..._PERIOD` bucket) to a date axis just because the label fits — it's often a pre-bucketed **NUMBER**, so the chart renders a number line, not a time axis, and Hex's date-granularity controls break. **Confirm the field's real warehouse type** (`SELECT YEAR(<col>)` probe — see `gotchas.md`); if the named field is numeric, use the true DATE column (e.g. `CLOSED_DATE`) at the pill's grain instead.
+  - Rule of thumb: a date shelf in Tableau → a DATE-typed field in Hex, full stop. Keep the type across the whole port (also `gotchas.md` "Preserve field data types").
 - **Faceting → small-multiples/trellis:** a `config.spec.fields[]` field with `channel: "h-facet"` or `"v-facet"`, `fieldType: "COLUMN"` — use for Tableau worksheets that put a dimension on Rows/Columns to create panels.
 - **Per-cell filters → Tableau worksheet filters:** shape `{"column": ..., "fieldType": "COLUMN", "predicate": {"op": "IS_ONE_OF", "arg": [...]}, "queryPath": [], "columnType": "STRING"}`. Chart cells: `config.spec.filters`. Pivot/table cells: `config.displayTableConfig.filters`. (Workbook/context filters go into the SQL `WHERE` instead.)
 - **Pivot / crosstab → Tableau text table:** `config.spec.visualizationType: "pivot-table"` with `row`/`column`/`value` channel fields.
 - **Valid EXPLORE channels:** `base-axis, cross-axis, color, opacity, tooltip, h-facet, v-facet, row, column, value, source, destination`. There is **no `detail` channel**.
+
+---
+
+## Dashboard objects beyond worksheets
+
+A Tableau dashboard also holds non-worksheet **objects** (`<zone type-v2='…'>`) — images, text, web-page embeds, buttons, spacers. Worksheets become native chart cells (above); handle the objects too, don't silently drop them.
+
+| Tableau object (`type-v2`) | Hex |
+|---|---|
+| **Image** (`bitmap`; `image-file-url` or embedded asset) | Hex renders images in a **Markdown/Text cell via file upload (drag-drop)** — *not* by URL. Download the image (from `image-file-url`, or extract the embedded asset from the `.twbx`/repository), add it to a markdown cell, and place that cell in the `appLayout`. |
+| **Text** (`text`) | **Markdown/Text cell** — port the formatted text to markdown. |
+| **Web page / URL embed / iframe** (`web`) | ⚠️ **No native equivalent.** Hex text cells don't accept raw HTML/iframes, and Hex's own embedding runs the other way (Hex → other tools, not external sites → Hex). Try a **Python cell** (`from IPython.display import IFrame; IFrame(url, w, h)`); if Hex sanitizes it, **flag as a gap** (same bucket as maps). |
+| **Button** (navigation) | No clean equivalent — flag for manual app setup. |
+| **Blank** (spacer) | Layout only — reproduce with `appLayout` spacing, no cell. |
+| Legend / **filter** card / **paramctrl** / **title** | Legend rides on the chart; filter/param cards → input-parameter cells (see `tableau-semantics.md`); title → the page title header. |
+
+Confirmed against Hex docs: images are **upload-only** in text cells; **HTML/iframe is unsupported**. So **image + text objects port cleanly; web-page/iframe embeds are a known gap** — call them out in the pilot.
 
 ---
 
