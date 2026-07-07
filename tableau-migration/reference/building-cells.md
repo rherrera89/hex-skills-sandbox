@@ -55,6 +55,23 @@ Real, valid exported cell configs live in `templates/`. **Clone one, override a 
 
 ---
 
+## Dashboard objects beyond worksheets
+
+A Tableau dashboard also holds non-worksheet **objects** (`<zone type-v2='…'>`) — images, text, web-page embeds, buttons, spacers. Worksheets become native chart cells (above); handle the objects too, don't silently drop them.
+
+| Tableau object (`type-v2`) | Hex |
+|---|---|
+| **Image** (`bitmap`; `image-file-url` or embedded asset) | Hex renders images in a **Markdown/Text cell via file upload (drag-drop)** — *not* by URL. Download the image (from `image-file-url`, or extract the embedded asset from the `.twbx`/repository), add it to a markdown cell, and place that cell in the `appLayout`. |
+| **Text** (`text`) | **Markdown/Text cell** — port the formatted text to markdown. |
+| **Web page / URL embed / iframe** (`web`) | ⚠️ **No native equivalent.** Hex text cells don't accept raw HTML/iframes, and Hex's own embedding runs the other way (Hex → other tools, not external sites → Hex). Try a **Python cell** (`from IPython.display import IFrame; IFrame(url, w, h)`); if Hex sanitizes it, **flag as a gap** (same bucket as maps). |
+| **Button** (navigation) | No clean equivalent — flag for manual app setup. |
+| **Blank** (spacer) | Layout only — reproduce with `appLayout` spacing, no cell. |
+| Legend / **filter** card / **paramctrl** / **title** | Legend rides on the chart; filter/param cards → input-parameter cells (see `tableau-semantics.md`); title → the page title header. |
+
+Confirmed against Hex docs: images are **upload-only** in text cells; **HTML/iframe is unsupported**. So **image + text objects port cleanly; web-page/iframe embeds are a known gap** — call them out in the pilot.
+
+---
+
 ## Styling — what maps from Tableau
 
 Styling lives in `config.spec.chartConfig` (data labels `series[].text.dataLabels`, donut `series[].radius`, legend `settings.legend.position`, colors via `colorMappings`). Split it — don't try 1:1:
