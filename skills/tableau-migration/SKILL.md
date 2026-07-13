@@ -11,7 +11,7 @@ description: >-
 
 # Tableau → Hex Migration
 
-A CLI-driven migration where **Claude is the porting agent** (not Hex's in-product Notebook Agent). You fetch a Tableau workbook, read its XML as the source of truth, rebuild each worksheet as Hex SQL + native chart cells against a real data connection, and QA with screenshots.
+A CLI-driven migration where **the Agent does the porting** (not Hex's in-product Notebook Agent). You fetch a Tableau workbook, read its XML as the source of truth, rebuild each worksheet as Hex SQL + native chart cells against a real data connection, and QA with screenshots.
 
 **Priority order (say this to the customer up front):** (1) **accuracy** of SQL + visuals first, (2) **similar look & feel** second. Some Tableau features have no clean 1:1 in Hex (maps, LOD/detail tooltips, cosmetic styling) — name those early so "it isn't pixel-identical" is never a surprise. Philosophy: **cover the basis, don't gold-plate.**
 

@@ -1,8 +1,8 @@
 # Tableau → Hex Migration Skill
 
-A durable, portable [Claude Code](https://claude.com/claude-code) skill that migrates Tableau dashboards into Hex — fetch the workbook, parse its XML, map the data connection, and rebuild each worksheet as Hex SQL + native chart cells.
+A durable, portable **agent skill** that migrates Tableau dashboards into Hex — fetch the workbook, parse its XML, map the data connection, and rebuild each worksheet as Hex SQL + native chart cells. It's a standard [Agent Skill](https://vercel.com/docs/agent-resources/skills), so it works with any terminal coding agent (Codex, Cursor, Claude Code, …) — see the [repo README](../../README.md#using-with-other-agents-codex-cursor-) for multi-agent install.
 
-**The full playbook lives in [`SKILL.md`](SKILL.md).** That's the canonical doc Claude reads.
+**The full playbook lives in [`SKILL.md`](SKILL.md).** That's the canonical doc the agent reads.
 
 ## Install (make it invocable)
 From the project you want it in:
@@ -13,7 +13,7 @@ Or with the bundled installer:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rherrera89/hex-skills-sandbox/main/install.sh | bash -s -- tableau-migration
 ```
-Either drops the skill into `.claude/skills/tableau-migration/` (secrets and local scratch are never copied). Then invoke it in Claude Code with `/tableau-migration`, or just ask to "migrate my Tableau dashboards to Hex" — the `description` frontmatter triggers it.
+Either drops the skill into your agent's skills directory (secrets and local scratch are never copied). Then invoke it via your agent (e.g. a `/tableau-migration` command), or just ask to "migrate my Tableau dashboards to Hex" — the `description` frontmatter triggers it. For Codex, Cursor, and other agents, see the [repo README](../../README.md#using-with-other-agents-codex-cursor-).
 
 ## First-time setup
 1. `cp credentials/tableau.env.example credentials/tableau.env` and fill in your Tableau **pod URL**, **site**, and **Personal Access Token**. (Gitignored — never commit it.)
@@ -23,7 +23,7 @@ Either drops the skill into `.claude/skills/tableau-migration/` (secrets and loc
 ## What's in here
 | Path | What |
 |------|------|
-| `SKILL.md` | The playbook — lean workflow spine (Claude reads this to run a migration) |
+| `SKILL.md` | The playbook — lean workflow spine (the agent reads this to run a migration) |
 | `reference/` | On-demand detail: `connection-mapping.md`, `tableau-semantics.md` (Phase 1: Tableau → SQL/Python + consolidation), `building-cells.md` (Phase 2: native charts + styling), `datasource-guide.md` (semantic-layer guide for Threads/agent), `gotchas.md` |
 | `tableau-zoo/` | The "Tableau Zoo" — regression fixtures (`.twb` inputs + parity ground truth + Hex goldens) |
 | `templates/` | Clone-and-override native Hex cell configs (METRIC, EXPLORE variants) |
