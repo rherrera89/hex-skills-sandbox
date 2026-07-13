@@ -37,12 +37,12 @@ trap cleanup EXIT
 # No skill given → list what's available and bail.
 if [ -z "$SKILL" ]; then
   printf '\n  ✨ hex-skills — available skills:\n\n'
-  for d in "$SRC"/*/; do [ -f "${d}SKILL.md" ] && say "• $(basename "$d")"; done
+  for d in "$SRC"/skills/*/; do [ -f "${d}SKILL.md" ] && say "• $(basename "$d")"; done
   printf '\n  install with:  ./install.sh <skill> [project-dir]\n\n'
   exit 0
 fi
 
-[ -f "$SRC/$SKILL/SKILL.md" ] || die "no skill called '$SKILL' (run with no args to list)"
+[ -f "$SRC/skills/$SKILL/SKILL.md" ] || die "no skill called '$SKILL' (run with no args to list)"
 
 DEST="$TARGET/.claude/skills/$SKILL"
 mkdir -p "$DEST"
@@ -54,7 +54,7 @@ rsync -a --delete \
   --exclude='credentials/tableau.env' \
   --exclude='tableau_exports/' \
   --exclude='working/' \
-  "$SRC/$SKILL/" "$DEST/"
+  "$SRC/skills/$SKILL/" "$DEST/"
 
 printf '\n  ✨ installed %s → %s\n\n' "$SKILL" "$DEST"
 say "next:"
