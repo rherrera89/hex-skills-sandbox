@@ -19,7 +19,6 @@ A CLI-driven migration where **the Agent does the porting** (not Hex's in-produc
 - [`reference/connection-mapping.md`](reference/connection-mapping.md) — resolve the Tableau → Hex data connection.
 - [`reference/tableau-semantics.md`](reference/tableau-semantics.md) — **Phase 1 (code conversion):** Tableau construct → warehouse SQL/Python (calcs, LOD, window calcs, params, sets, RLS), the per-dialect docs step, and SQL consolidation into shared cells.
 - [`reference/building-cells.md`](reference/building-cells.md) — **Phase 2 (viz build-out):** native-cell template library + styling map.
-- [`reference/generative-app.md`](reference/generative-app.md) — **Phase 2 alternative:** build a generative (React) app over the same SQL cells instead of native cells.
 - [`reference/datasource-guide.md`](reference/datasource-guide.md) — author a Hex guide mirroring the Tableau data source (semantic layer for Threads/agent), published via `hex guide`.
 - [`reference/gotchas.md`](reference/gotchas.md) — parsing correctness rules, Hex CLI quirks, app layout.
 
@@ -32,7 +31,7 @@ A CLI-driven migration where **the Agent does the porting** (not Hex's in-produc
 ## Workflow at a glance
 0. **Prioritize & organize** the customer's dashboards → one folder.
 1. **Pilot 1–2 dashboards** end-to-end, QA, tune.
-2. **Port each workbook:** resolve connection → parse XML → plan+build SQL → validate → build the app (**native cells or generative React** — ask) → run.
+2. **Port each workbook:** resolve connection → parse XML → plan+build SQL → validate → build native cells → run.
 3. **Batch the rest** with the folder loop + manifest.
 
 ---
@@ -96,9 +95,7 @@ Why: the agent is **blind to rendered output**, so a human check on a tiny first
 
 4. **Validate with the run-status oracle.** The Hex CLI can't read cell output — use **COMPLETED-vs-ERRORED** as a boolean oracle to test SQL validity, probe schema, and check type-casts. Fix until COMPLETED.
 
-5. **Choose the build target, then build the presentation layer.** Phase 1 (the SQL cells) is the same either way — only presentation differs. **Ask the customer which app they want:**
-   - **Classic native-cell app** — native Hex charts + native interactivity, and can embed the Notebook Agent / Threads (chat-with-data). Deterministic to build. → clone-and-override from `templates/`, see [`reference/building-cells.md`](reference/building-cells.md).
-   - **Generative app** — a custom **React** UI (fancier / closer to the Tableau look), but **no embedded agent** and you maintain the React. → author `genAppFiles` reading `useHexData(cellId)`, see [`reference/generative-app.md`](reference/generative-app.md).
+5. **Build native chart/KPI cells** by clone-and-override from `templates/` — see [`reference/building-cells.md`](reference/building-cells.md).
 
 6. **Run and QA.** `hex project run` (async — poll `run status`), then hand the project link to the customer for visual QA. Set the app layout via export/import if desired → [`reference/gotchas.md`](reference/gotchas.md).
 
@@ -139,7 +136,7 @@ On rerun, skip any workbook whose `status` is `verified` (or `run`, if re-verify
 
 # Files in this skill
 - `SKILL.md` — this playbook (workflow spine).
-- `reference/` — on-demand detail: `connection-mapping.md`, `tableau-semantics.md` (Phase 1), `building-cells.md` (Phase 2 — native cells), `generative-app.md` (Phase 2 — generative React app), `datasource-guide.md` (semantic-layer guide), `gotchas.md`.
+- `reference/` — on-demand detail: `connection-mapping.md`, `tableau-semantics.md` (Phase 1), `building-cells.md` (Phase 2), `datasource-guide.md` (semantic-layer guide), `gotchas.md`.
 - `templates/` — clone-and-override native-cell configs (METRIC + EXPLORE bar/line/area/pie/scatter/faceted/pivot, `_filter_snippet.json`).
 - `tableau-zoo/` — regression fixtures (`.twb` inputs + parity ground truth + Hex goldens).
 - `scripts/tableau_fetch.py` — fetch `.twb`/`.twbx` from Tableau Cloud/Server (`--list` / `--name` / `--project`).
