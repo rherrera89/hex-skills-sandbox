@@ -121,6 +121,18 @@ one per suspect cluster with `hex cell run <cell_id>` + `hex run status … --wa
 (isolates the failure to that cell). This lets you *verify* the counts you can't
 read.
 
+⚠️ **ERRORED is overloaded — anchor the oracle first.** A row-level throw (a
+date/cast function hitting an unexpected type, an overflow) *also* returns
+ERRORED, indistinguishable from the divide-by-zero you're testing for — so a
+probe can **falsely "confirm"** a wrong hypothesis by throwing for an unrelated
+reason. Before trusting any probe: **(1)** run **anchor probes** — a
+known-COMPLETED (`SELECT 1`) and a known-ERRORED (`SELECT 1/0`) — to confirm the
+oracle is behaving this run; **(2)** keep `<assertion-holds>` an **aggregate
+comparison** (the scalar `CASE WHEN COUNT(*) … END` form above), never row-wise
+arithmetic that can throw on the data — that's why the form wraps a single scalar
+`CASE`, not a per-row expression. Full rule + the `CLOSED_MONTH` war story →
+[`gotchas.md`](gotchas.md) Hex CLI quirks.
+
 - **A filter actually moved the number** (catches a wrong-scope / no-op filter):
   ```sql
   SELECT 1.0 / (CASE WHEN

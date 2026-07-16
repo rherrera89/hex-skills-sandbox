@@ -285,6 +285,9 @@ where they power self-serve Q&A without bloating the dashboard queries.
   ratio: `SELECT dim, SUM(a)/SUM(b) AS ratio FROM {{shared_df}} GROUP BY dim`;
   the chart then plots the `ratio` column directly. Because it *reads* the
   consolidated cell, it doesn't fork the base query — consolidation holds.
+  ⚠️ This is a **dataframe-SQL cell** (`dataFrameCell: true`, `dataConnectionId:
+  null`) — `hex cell create` **can't** mint one (it ERRORs); author it in YAML,
+  or read from the warehouse instead. See `building-cells.md` step 4.
   (Higher-fidelity alternative: define the ratio as a semantic-model MEASURE.)
 
 **Make it reviewable:** record the `sql_cell → [charts]` mapping in the
