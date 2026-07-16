@@ -24,7 +24,7 @@ Either drops the skill into your agent's skills directory (secrets and local scr
 | Path | What |
 |------|------|
 | `SKILL.md` | The playbook — lean workflow spine (the agent reads this to run a migration) |
-| `reference/` | On-demand detail: `connection-mapping.md`, `tableau-semantics.md` (Phase 1: Tableau → SQL/Python + consolidation), `building-cells.md` (Phase 2: native charts + styling), `datasource-guide.md` (semantic-layer guide for Threads/agent), `gotchas.md` |
+| `reference/` | On-demand detail: `connection-mapping.md`, `tableau-semantics.md` (Phase 1: Tableau → SQL/Python + consolidation), `sql-review.md` (Phase 1.5: SQL-fidelity review gate), `building-cells.md` (Phase 2: native charts + styling), `datasource-guide.md` (semantic-layer guide for Threads/agent), `gotchas.md` |
 | `tableau-zoo/` | The "Tableau Zoo" — regression fixtures (`.twb` inputs + parity ground truth + Hex goldens) |
 | `templates/` | Clone-and-override native Hex cell configs (METRIC, EXPLORE variants) |
 | `scripts/tableau_fetch.py` | Fetch `.twb`/`.twbx` from Tableau Cloud/Server |
