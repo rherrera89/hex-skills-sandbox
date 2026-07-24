@@ -1,0 +1,256 @@
+{
+ "cellType": "EXPLORE",
+ "cellLabel": "All ARR by Forecast Category and Stage Name",
+ "config": {
+  "semanticProjectId": null,
+  "dataframe": "dataframe",
+  "colorMappings": {
+   "false": "#f4a261",
+   "6 - Nurture": "#2a9d8f",
+   "1 - Discovery": "#e76f51",
+   "8 - Closed Won": "#87ceeb",
+   "7 - Closed Lost": "#5f8fbf"
+  },
+  "spec": {
+   "fields": [
+    {
+     "id": "019f2336-2fcf-769d-a4f7-d0d2f47255e5",
+     "value": "STAGE_NAME",
+     "channel": "color",
+     "dataType": "VARCHAR",
+     "seriesId": "019f2334-0f87-746e-aa04-b5a13a610b02",
+     "fieldType": "COLUMN",
+     "queryPath": []
+    },
+    {
+     "id": "019f2335-dcee-76bb-9b43-84689ff4d225",
+     "value": "ARR",
+     "channel": "cross-axis",
+     "dataType": "FLOAT",
+     "seriesId": "019f2334-0f87-746e-aa04-b5a13a610b02",
+     "fieldType": "COLUMN",
+     "queryPath": [],
+     "aggregation": "Sum"
+    },
+    {
+     "id": "019f2335-f4a2-7280-91a2-79b40ff5b2fb",
+     "value": "FORECAST_CATEGORY",
+     "channel": "base-axis",
+     "dataType": "VARCHAR",
+     "seriesId": "019f2334-0f87-746e-aa04-b5a13a610b02",
+     "fieldType": "COLUMN",
+     "queryPath": []
+    }
+   ],
+   "details": {
+    "fields": [
+     {
+      "value": "OPPORTUNITY_ID",
+      "dataType": "VARCHAR",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "ACCOUNT_ID",
+      "dataType": "VARCHAR",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "ACCOUNT_NAME",
+      "dataType": "VARCHAR",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "ACCOUNT_SEGMENT_TYPE",
+      "dataType": "VARCHAR",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "OPPORTUNITY_CREATOR",
+      "dataType": "VARCHAR",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "OPPORTUNITY_CREATOR_ID",
+      "dataType": "VARCHAR",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "STAGE_NAME",
+      "dataType": "VARCHAR",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "STAGE_NUMERIC",
+      "dataType": "FLOAT",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "CREATED_DATE",
+      "dataType": "DATE",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "CLOSED_DATE",
+      "dataType": "DATE",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "CLOSED_MONTH",
+      "dataType": "FLOAT",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "CLOSED_QUARTER",
+      "dataType": "FLOAT",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "STAGE_0_DATE",
+      "dataType": "DATE",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "STAGE_1_DATE",
+      "dataType": "DATE",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "FIRST_TOUCH_SOURCE",
+      "dataType": "VARCHAR",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "FORECAST_CATEGORY",
+      "dataType": "VARCHAR",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "LOSS_REASON",
+      "dataType": "VARCHAR",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "OPPORTUNITY_TYPE",
+      "dataType": "VARCHAR",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "IS_MEETING_BOOKED",
+      "dataType": "BOOLEAN",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "IS_UP_FUNNEL",
+      "dataType": "BOOLEAN",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "IS_DOWN_FUNNEL",
+      "dataType": "BOOLEAN",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "IS_NURTURE",
+      "dataType": "BOOLEAN",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "IS_CLOSED",
+      "dataType": "BOOLEAN",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "IS_WON",
+      "dataType": "BOOLEAN",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "IS_PASSED_TO_SELF_SERVE",
+      "dataType": "BOOLEAN",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     },
+     {
+      "value": "ARR",
+      "dataType": "FLOAT",
+      "fieldType": "COLUMN",
+      "queryPath": []
+     }
+    ],
+    "enabled": false,
+    "showAllBaseTableDetailFields": false
+   },
+   "viewType": "visualization",
+   "rowTotals": true,
+   "chartConfig": {
+    "series": [
+     {
+      "id": "019f2334-0f87-746e-aa04-b5a13a610b02",
+      "type": "bar"
+     }
+    ],
+    "settings": {
+     "legend": {
+      "position": "right"
+     }
+    },
+    "orientation": "vertical",
+    "seriesGroups": [
+     [
+      "019f2334-0f87-746e-aa04-b5a13a610b02"
+     ]
+    ]
+   },
+   "columnTotals": true,
+   "visualizationType": "chart"
+  },
+  "displayTableConfig": {
+   "pageSize": 50,
+   "height": null,
+   "hideIcons": false,
+   "defaultColumnWidth": null,
+   "hideIndex": false,
+   "defaultSortColumn": null,
+   "defaultSortIndexColumn": null,
+   "defaultSortDirection": "ASC",
+   "conditionalFormatting": null,
+   "calcs": null,
+   "filters": null,
+   "columnProperties": [],
+   "columnOrdering": null,
+   "customColumnOrdering": null,
+   "pinnedColumns": null,
+   "hiddenColumns": null,
+   "pinIndexColumns": false,
+   "showAggregations": false,
+   "columnAggregations": null
+  },
+  "resultVariables": [],
+  "resultIncludeDetailColumns": false,
+  "height": null
+ }
+}

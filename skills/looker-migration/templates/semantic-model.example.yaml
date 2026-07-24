@@ -1,0 +1,276 @@
+# ---------------------------------------------------------------------------
+# EXAMPLE Hex semantic layer — the TARGET format a Looker migration produces.
+#
+# Multi-document YAML: each `---`-separated document is one semantic resource
+# (`type: model` or `type: view`). Hex infers nothing from file names/locations,
+# so models + views can share one file.
+#
+# This is a renamed DEMO (ids suffixed `_demo`, view named "… (Migration Demo)")
+# so it can be published to a workspace without colliding with a real semantic
+# layer. `base_sql_table` still points at real demo tables (read-only).
+#
+# Mapping from LookML → these constructs is in reference/semantic-model.md.
+# Two models (opportunities, accounts) + one curated view over them.
+# ---------------------------------------------------------------------------
+
+id: opportunities_demo
+type: model
+name: Opportunities (Migration Demo)
+description: One row per opportunity from the B2B SaaS CRM. Canonical source for ARR, pipeline, and conversion metrics. Metrics deliberately count only 'New Business' and 'Expansion/Upsell' opportunity types (renewals excluded).
+base_sql_table: B2B_DEMO_DATA.PROD.DIM_OPPORTUNITIES
+
+dimensions:
+  - id: opportunity_id
+    type: string
+    unique: true                     # LookML `primary_key: yes` → `unique: true`
+    description: Unique identifier for the opportunity.
+  - id: account_id
+    type: string
+    description: Foreign key to the account this opportunity belongs to.
+    visibility: internal             # LookML `hidden: yes` → `visibility: internal`
+  - id: account_name
+    type: string
+    description: Denormalized account name from the opportunity record. Prefer the accounts model for account attributes.
+  - id: account_segment_type
+    type: string
+    description: Denormalized account segment on the opportunity. When segmenting metrics, prefer ${accounts_demo.account_segment_type} on the accounts model.
+  - id: opportunity_creator
+    type: string
+    description: Name of the user who created the opportunity.
+  - id: opportunity_creator_id
+    type: string
+    description: ID of the user who created the opportunity.
+    visibility: internal
+  - id: stage_name
+    type: string
+    description: Sales stage name. Paired with stage_numeric where 8=Closed Won, 7=Closed Lost, 1–5=open pipeline, 6=Nurture.
+  - id: stage_numeric
+    type: number
+    description: Numeric sales stage. 8=Closed Won, 7=Closed Lost, 1–5=open pipeline, 6=Nurture.
+  - id: created_date
+    type: date
+    description: Date the opportunity was created (day granularity).
+  - id: closed_date
+    type: date
+    description: Date the opportunity closed (day granularity). PRIMARY time dimension for all ARR and pipeline metrics — never derive periods from CLOSED_MONTH or CLOSED_QUARTER; always truncate closed_date.
+  - id: closed_month
+    type: number
+    description: Legacy closed month field. Do not use for period truncation — truncate ${closed_date} instead.
+    visibility: internal
+  - id: closed_quarter
+    type: number
+    description: Legacy closed quarter field. Do not use for period truncation — truncate ${closed_date} instead.
+    visibility: internal
+  - id: stage_0_date
+    type: date
+    description: Date the opportunity reached Stage 0.
+  - id: stage_1_date
+    type: date
+    description: Date the opportunity reached Stage 1.
+  - id: first_touch_source
+    type: string
+    description: First-touch marketing source attributed to the opportunity.
+  - id: forecast_category
+    type: string
+    description: Forecast category (e.g., Best Case, Commit, Pipeline, Closed, Omitted).
+  - id: loss_reason
+    type: string
+    description: Recorded reason the opportunity was lost (populated for Closed Lost).
+  - id: opportunity_type
+    type: string
+    description: Type of opportunity (New Business, Expansion/Upsell, Renewal, etc.). Metrics in this model only count 'New Business' and 'Expansion/Upsell'.
+  - id: is_meeting_booked
+    type: boolean
+    description: Whether a meeting has been booked on this opportunity.
+  - id: is_up_funnel
+    type: boolean
+    description: Whether the opportunity is currently up-funnel.
+  - id: is_down_funnel
+    type: boolean
+    description: Whether the opportunity is currently down-funnel.
+  - id: is_nurture
+    type: boolean
+    description: Whether the opportunity is in Nurture (stage 6).
+  - id: is_closed
+    type: boolean
+    description: Whether the opportunity is closed (won or lost).
+  - id: is_won
+    type: boolean
+    description: Whether the opportunity is won.
+  - id: is_passed_to_self_serve
+    type: boolean
+    description: Whether the opportunity was passed to self-serve.
+  - id: arr
+    type: number
+    description: Annual Recurring Revenue value of the opportunity.
+
+measures:
+  # Simple aggregations: LookML `type: sum/count/count_distinct` → func + of.
+  - id: total_arr
+    name: Total ARR
+    func: sum
+    of: arr
+    description: SUM(arr) across all opportunities in scope. Unfiltered — includes all opportunity types and stages.
+  - id: opportunity_count
+    name: Opportunities
+    func: count_distinct
+    of: opportunity_id
+    description: COUNT(DISTINCT opportunity_id).
+  # Filtered / computed measures: LookML filtered measures & `type: number` sql
+  # → func_sql with ${dimension} / ${measure} refs.
+  - id: closed_won_arr
+    name: Closed Won ARR
+    type: number
+    func_sql: "SUM(CASE WHEN ${stage_numeric} = 8 AND ${is_won} AND ${opportunity_type} IN ('New Business','Expansion/Upsell') THEN ${arr} END)"
+    description: Sum of ARR for Closed Won opportunities (stage_numeric = 8 AND is_won). Counts only 'New Business' and 'Expansion/Upsell' opportunity types — renewals excluded.
+  - id: closed_won_opportunities
+    name: Closed Won Opportunities
+    func_sql: "COUNT(DISTINCT CASE WHEN ${stage_numeric} = 8 AND ${is_won} AND ${opportunity_type} IN ('New Business','Expansion/Upsell') THEN ${opportunity_id} END)"
+    description: Distinct count of Closed Won opportunities (stage_numeric = 8 AND is_won). Counts only 'New Business' and 'Expansion/Upsell' opportunity types — renewals excluded.
+  - id: forecasted_arr
+    name: Forecasted ARR
+    type: number
+    func_sql: "SUM(CASE WHEN ${stage_numeric} IN (1,2,3,4,5,8) AND ${forecast_category} IN ('Best Case','Commit','Pipeline','Closed') AND ${opportunity_type} IN ('New Business','Expansion/Upsell') THEN ${arr} END)"
+    description: Sum of ARR for opportunities in open pipeline stages (1–5) or Closed Won (8) whose forecast category is Best Case, Commit, Pipeline, or Closed. Counts only 'New Business' and 'Expansion/Upsell' opportunity types — renewals excluded.
+  - id: stage_0_opportunities
+    name: Stage 0 Opportunities
+    func_sql: "COUNT(DISTINCT CASE WHEN ${stage_0_date} IS NOT NULL AND ${opportunity_type} IN ('New Business','Expansion/Upsell') THEN ${opportunity_id} END)"
+    description: Distinct count of opportunities that reached Stage 0 (stage_0_date IS NOT NULL). Counts only 'New Business' and 'Expansion/Upsell' opportunity types — renewals excluded.
+  # Measure-of-measures ratio: LookML `type: number` measure dividing two measures
+  # → func_sql referencing other ${measure}s. NEVER a ratio of ARR sums.
+  - id: s0_to_closed_won_conversion_rate
+    name: S0 → Closed Won Conversion Rate
+    type: number
+    func_sql: "${closed_won_opportunities} / NULLIF(${stage_0_opportunities}, 0)"
+    description: Ratio of Closed Won Opportunities to Stage 0 Opportunities (both distinct counts). Never computed as a ratio of ARR sums. Counts only 'New Business' and 'Expansion/Upsell' opportunity types — renewals excluded.
+
+relations:
+  # LookML explore join (`sql_on` + `relationship`) → relation (join_sql + type).
+  - id: accounts_demo
+    type: many_to_one
+    join_sql: "${account_id} = ${accounts_demo.account_id}"
+
+---
+
+id: accounts_demo
+type: model
+name: Accounts (Migration Demo)
+description: One row per account. Canonical source for account attributes such as segment, industry, status, and ownership. When segmenting opportunity metrics by segment, prefer account_segment_type from this model over the denormalized version on opportunities.
+base_sql_table: B2B_DEMO_DATA.PROD.DIM_ACCOUNTS
+
+dimensions:
+  - id: account_id
+    type: string
+    unique: true
+    description: Unique identifier for the account.
+  - id: account_name
+    type: string
+    description: Human-readable account name.
+  - id: created_date
+    type: date
+    description: Date the account was created (day granularity). Distinct from opportunities_demo.created_date, which is the opportunity's creation date.
+  - id: account_segment_type
+    type: string
+    description: Segment classification of the account (e.g., Enterprise, Mid-Market, SMB). Preferred segmentation dimension — use this instead of ${opportunities_demo.account_segment_type} when slicing metrics by segment.
+  - id: account_employees
+    type: number
+    description: Reported number of employees at the account.
+  - id: industry_group
+    type: string
+    description: High-level industry grouping for the account.
+  - id: industry
+    type: string
+    description: Specific industry classification for the account.
+  - id: account_score
+    type: string
+    description: Account scoring value (fit / prioritization).
+  - id: account_status
+    type: string
+    description: Current status of the account (e.g., Prospect, Customer, Churned).
+  - id: account_owner_id
+    type: string
+    description: ID of the account owner (AE).
+    visibility: internal
+  - id: account_owner_name
+    type: string
+    description: Name of the account owner (AE).
+  - id: sdr_owner_id
+    type: string
+    description: ID of the SDR owner for the account.
+    visibility: internal
+  - id: sdr_owner_name
+    type: string
+    description: Name of the SDR owner for the account.
+
+measures:
+  - id: account_count
+    name: Accounts
+    func: count_distinct
+    of: account_id
+    description: COUNT(DISTINCT account_id).
+  # Cross-model measure: references a measure on a related model via ${model.measure}.
+  - id: opportunities_per_account
+    name: Opportunities per Account
+    type: number
+    func_sql: "${opportunities_demo.opportunity_count} / NULLIF(${account_count}, 0)"
+    description: Average number of opportunities associated with each account. Useful for understanding product adoption breadth (more opportunities per account = more expansion / cross-sell motion).
+  - id: closed_won_arr_per_account
+    name: Closed Won ARR per Account
+    type: number
+    func_sql: "${opportunities_demo.closed_won_arr} / NULLIF(${account_count}, 0)"
+    description: Average Closed Won ARR per account across the opportunities relation. Product adoption / expansion signal.
+
+relations:
+  - id: opportunities_demo
+    type: one_to_many
+    join_sql: "${account_id} = ${opportunities_demo.account_id}"
+  # NOTE: the source model also related to a `customers` model (one_to_one);
+  # dropped here to keep the example self-contained (no customers model shipped).
+
+---
+
+id: opportunity_metrics_demo
+type: view
+name: Opportunity Metrics (Migration Demo)
+description: End-user entry point for the Opportunity Metrics Dashboard. Grain is one row per opportunity. Use closed_date as the primary time dimension for ARR and pipeline metrics. Filtered metrics count only 'New Business' and 'Expansion/Upsell' opportunity types.
+base: opportunities_demo
+contents:
+  # Base-model group: dimensions/measures referenced by id (no prefix).
+  - name: Opportunity
+    description: Opportunity-level attributes and canonical ARR / pipeline metrics.
+    dimensions:
+      - opportunity_id
+      - closed_date
+      - created_date
+      - stage_name
+      - stage_numeric
+      - forecast_category
+      - opportunity_type
+      - is_won
+      - is_closed
+      - loss_reason
+      - first_touch_source
+      - stage_0_date
+      - stage_1_date
+      - arr
+    measures:
+      - total_arr
+      - opportunity_count
+      - closed_won_arr
+      - closed_won_opportunities
+      - forecasted_arr
+      - stage_0_opportunities
+      - s0_to_closed_won_conversion_rate
+  # Related-model group: `relation:` names the relation on the base model;
+  # dimensions come from the related (accounts) model.
+  - relation: accounts_demo
+    name: Account
+    description: Account attributes for segmenting opportunity metrics. Prefer account_segment_type here over the denormalized copy on the opportunity.
+    dimensions:
+      - account_name
+      - account_segment_type
+      - industry
+      - industry_group
+      - account_status
+      - account_owner_name
+      - created_date
