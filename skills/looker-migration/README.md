@@ -18,6 +18,8 @@ Looker has two independent layers; the skill converts them separately:
 
 **UDD is the primary path** — most real dashboards are user-defined (in no `.lkml` file) and reachable only via the API.
 
+**Extraction front-end:** the skill uses **[looker-cooker](https://github.com/nick-at/looker-cooker)** (MIT) to bulk-extract the instance — per dashboard: `metadata.json`, `dashboard.lookml`, **`screenshot.png`**, and **`queries.sql`** (compiled SQL), resumable. The screenshots mean the agent isn't blind to layout — it self-checks the built Hex app against the rendered source. `looker_fetch.py` complements it for connection dialect + reference result values (the numeric-parity oracle looker-cooker doesn't provide). See [`reference/extraction.md`](reference/extraction.md).
+
 ## Looker hands you the SQL and the numbers
 Looker will hand you both the **generated SQL** (`looker_fetch.py sql` → `POST /queries/run/sql`) and the **actual result values** (`looker_fetch.py query` → `POST /queries/run/json`) over the API. So Phase 1 ports Looker's own SQL rather than reconstructing it, and the Phase-1.5 SQL-fidelity gate gets a real **numeric parity oracle** — a direct value check against Looker's own answers.
 
@@ -31,14 +33,15 @@ Then invoke it via your agent (e.g. a `/looker-migration` command), or just ask 
 ## First-time setup
 1. `cp credentials/looker.env.example credentials/looker.env` and fill in your Looker **base URL** + **API3 client_id/secret** (or use `~/.looker/looker.ini`). Gitignored — never commit it.
 2. Install the [Hex CLI](https://hex.tech/product/cli) and authenticate.
-3. Know which **Hex data connection** the migrated cells should query.
-4. Smoke-test: `python3 scripts/looker_fetch.py whoami`.
+3. Install the extractor: `pip install git+https://github.com/nick-at/looker-cooker.git && playwright install chromium` (uses the same Looker API3 key via `LOOKERSDK_*` env vars).
+4. Know which **Hex data connection** the migrated cells should query.
+5. Smoke-test: `python3 scripts/looker_fetch.py whoami` and `looker-cooker --limit 2 --output-dir working/`.
 
 ## What's in here
 | Path | What |
 |------|------|
 | `SKILL.md` | The playbook — lean workflow spine (the agent reads this to run a migration) |
-| `reference/` | On-demand detail: `connection-mapping.md`, `lookml-semantics.md` (Phase 1: LookML → SQL/Python + consolidation), `sql-review.md` (Phase 1.5: SQL-fidelity gate + numeric parity), `building-cells.md` (Phase 2 option A: coding agent builds cells), `datasource-guide.md` (headless guide), `semantic-model.md` (optional governed semantic model via `hex context`), `gotchas.md` |
+| `reference/` | On-demand detail: `extraction.md` (Phase 1 front-end: looker-cooker), `connection-mapping.md`, `lookml-semantics.md` (Phase 1: LookML → SQL/Python + consolidation), `sql-review.md` (Phase 1.5: SQL-fidelity gate + numeric parity), `building-cells.md` (Phase 2 option A: coding agent builds cells), `datasource-guide.md` (headless guide), `semantic-model.md` (optional governed semantic model via `hex context`), `gotchas.md` |
 | `templates/` | Clone-and-override native Hex cell configs (METRIC, EXPLORE variants) + `semantic-model.example.yaml` |
 | `scripts/looker_fetch.py` | Looker REST API 4.0 client — `whoami` / `list-*` / `connection` / `explore` / `dashboard` / `look` / `sql` / `query` / `raw` |
 | `credentials/` | `looker.env.example` (copy → `looker.env`, gitignored) |

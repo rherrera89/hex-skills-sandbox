@@ -39,6 +39,7 @@ Looker has two independent layers (same split the semantic-layer migration liter
 ⚠️ **UDD is the primary path.** Most real Looker dashboards are **user-defined** (built in the UI, in no `.lkml` file) and are reachable **only** via the API. The API returns UDD and LookML dashboards as the *same* `Dashboard` JSON, so discovery keys off the API, not files. `.dashboard.lookml` parsing is a secondary, offline-only path.
 
 ## Reference docs (read on demand)
+- [`reference/extraction.md`](reference/extraction.md) — **Phase 1 front-end:** run **looker-cooker** to bulk-extract the instance → per-dashboard `metadata.json` + `dashboard.lookml` + **`screenshot.png`** + **`queries.sql`** (compiled SQL), resumable. The source-of-truth artifacts the rest of the pipeline consumes; `looker_fetch.py` complements it for connection dialect + reference values.
 - [`reference/connection-mapping.md`](reference/connection-mapping.md) — resolve the LookML model's `connection:` → warehouse → **Hex data connection**.
 - [`reference/lookml-semantics.md`](reference/lookml-semantics.md) — **Phase 1 (code conversion):** LookML construct → warehouse SQL/Python (dimensions, measures, `dimension_group`, derived tables/PDTs, joins, `sql_always_where`/`access_filter`, `filters`/`parameters` + Liquid, dashboard table calcs), the per-dialect docs step, and SQL consolidation into shared cells. **Use Looker's generated SQL as the reference.**
 - [`reference/sql-review.md`](reference/sql-review.md) — **Phase 1.5 (SQL-fidelity review gate):** ledger → independent re-derivation & diff → mistake-class checklist → **numeric parity against Looker's own values** + differential oracle probes. Catches semantically-wrong SQL that *passes* the run oracle.
@@ -48,7 +49,8 @@ Looker has two independent layers (same split the semantic-layer migration liter
 - [`reference/gotchas.md`](reference/gotchas.md) — LookML/Looker-API parsing correctness rules, Hex CLI quirks, app layout.
 
 ## What you need before starting
-- **Looker access** — an API3 key (client_id/client_secret) for `scripts/looker_fetch.py` *or* a checkout of the LookML project's Git repo (offline path). For UDD dashboards the **API is required** (files can't see them).
+- **Looker access** — an API3 key (client_id/client_secret) for **looker-cooker** (the extractor) + `scripts/looker_fetch.py` *or* a checkout of the LookML project's Git repo (offline path). For UDD dashboards the **API is required** (files can't see them).
+- **looker-cooker** (recommended extractor) — `pip install git+https://github.com/nick-at/looker-cooker.git && playwright install chromium`. Bulk-extracts metadata + LookML + compiled SQL + **screenshots**; see [`reference/extraction.md`](reference/extraction.md). Uses the same API3 key via `LOOKERSDK_*` env vars.
 - **Hex CLI** installed and authed, and the **target Hex data connection** the migrated cells will query.
 - **Hex-YAML editor validation (install this).** You'll hand-edit exported project YAML (native cells, app layout). Install the **[RedHat YAML VS Code extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)** — it auto-fetches the official **Hex file-format JSON Schema from [SchemaStore](https://www.schemastore.org/)** and gives live validation, autocomplete, and hover docs for the whole Hex YAML surface. **Schema detection is filename-based: name the file `*.hex.yaml`** and the schema applies automatically. (For CLI/CI, validate against `https://static.hex.site/hex-file-schema.json` — see `building-cells.md`.)
 - `credentials/looker.env` filled in from `credentials/looker.env.example` (base URL + API3 key), or a `~/.looker/looker.ini`. Gitignored.
@@ -65,7 +67,7 @@ Looker has two independent layers (same split the semantic-layer migration liter
 
 Migration is the best moment a team ever gets to prune. Most Looker instances are 60–80% dead weight — abandoned drafts, one-offs, near-duplicates. **Do not migrate what nobody uses.** Guide the customer through a short triage before porting a single dashboard.
 
-1. **Take inventory.** `looker_fetch.py list-dashboards` (UDD + LookML), `list-looks`, `list-models`. For **usage** (the value axis), Looker exposes it well via its own **System Activity** model — run an inline query against `model: system__activity` (the `history` explore grouped by `dashboard.id` / `look.id` for run counts over the last 90 days; needs a role with `see_system_activity`). Per dashboard capture: title, owner, last-run, 90-day run count, and a one-line "what decision does this drive?"
+1. **Take inventory.** `looker_fetch.py list-dashboards` (UDD + LookML), `list-looks`, `list-models` for a fast list. For **usage** (the value axis), Looker exposes it well via its own **System Activity** model — run an inline query against `model: system__activity` (the `history` explore grouped by `dashboard.id` / `look.id` for run counts over the last 90 days; needs a role with `see_system_activity`). Per dashboard capture: title, owner, last-run, 90-day run count, and a one-line "what decision does this drive?" **Screenshots make triage fast:** a `looker-cooker --no-sql` pass gives a rendered image of every dashboard — eyeballing them is the quickest way to spot dead/duplicate content ([`reference/extraction.md`](reference/extraction.md)).
 
 2. **Prioritize on three axes**, then bucket:
 
@@ -90,11 +92,11 @@ Migration is the best moment a team ever gets to prune. Most Looker instances ar
 - **Go all the way:** discover → SQL → validate → **numeric parity** → native cells → run → **customer visually QAs** vs. the Looker original.
 - **Tune, then scale:** fold fixes (connection mapping, LookML translations, format mappings, filter scopes) back into this playbook/templates *before* batching the rest.
 
-Why: even with Looker's value oracle, the agent is **blind to rendered layout**, so a human check on a tiny first batch catches systematic errors before they multiply.
+Why: looker-cooker's screenshots + Looker's value oracle mean the agent can self-check both numbers and layout — but a human still signs off the pilot to catch systematic errors before they multiply across a wave.
 
 # Guiding the customer
 - **State the priority order up front** (accuracy first, look & feel second).
-- **Name the two human gates:** (1) **data connection** — you'll ask when the target Hex connection is ambiguous; (2) **visual QA** — you can't see rendered charts, so they confirm layout/format fidelity on the pilot and each batch. (Numbers you *can* now check yourself against Looker's API — do so.)
+- **Name the two human gates:** (1) **data connection** — you'll ask when the target Hex connection is ambiguous; (2) **visual QA** — the customer signs off layout/format fidelity on the pilot and each batch. (You now self-check first: **numbers** against Looker's API values, and **layout** against looker-cooker's source screenshots — but the human sign-off is still the gate.)
 - **Tell them what to provide:** Looker API3 key *or* a LookML Git checkout (+ API for UDDs); and which **Hex data connection** to target.
 - **Work in waves, not one big bang:** pilot → tune → batch a wave → QA → next wave.
 
@@ -104,20 +106,18 @@ Why: even with Looker's value oracle, the agent is **blind to rendered layout**,
 
 1. **Resolve the data connection, then load its SQL dialect docs.** The LookML model declares a `connection:`; `looker_fetch.py connection <name>` returns its dialect + database + schema. Match on metadata (dialect + database), not names/hosts, to a Hex connection. Full procedure → [`reference/connection-mapping.md`](reference/connection-mapping.md). ⚠️ **Never assume Snowflake** — Looker runs on all mainstream warehouses. Once you know the warehouse, open its function reference and confirm the syntax for what this dashboard uses (`QUALIFY` support, week-start, date-parse tokens, regex/percentile names). Links + the "what actually varies" checklist → [`reference/lookml-semantics.md`](reference/lookml-semantics.md).
 
-2. **Fetch the contract + Looker's generated SQL; create the Hex project and inject the source.**
+2. **Extract the source-of-truth artifacts; create the Hex project and inject the source.** Run **looker-cooker** for the target(s) → `metadata.json` + `dashboard.lookml` + `screenshot.png` + `queries.sql` per dashboard ([`reference/extraction.md`](reference/extraction.md)). `queries.sql` *is* Looker's compiled SQL — no per-query fetch needed.
    ```bash
-   python3 scripts/looker_fetch.py dashboard <id>           # -> looker_exports/<id>.contract.json
-   # per tile whose SQL you'll port, grab Looker's own SQL as the reference:
-   python3 scripts/looker_fetch.py sql <tile-query-spec>.json
+   looker-cooker --dashboard-id <id> --output-dir working/    # metadata/lookml/screenshot/queries.sql
    hex project create ...
-   hex cell create -s "$(cat looker_exports/<id>.contract.json)"   # markdown cell holding the source contract
+   hex cell create -s "$(cat working/dashboards/<Title>__<id>/metadata.json)"   # markdown cell holding the source
    ```
-   **Keep this contract cell (and, if useful, the LookML views) in the notebook, but never add it to the app layout** — it's a working reference for whoever maintains the migration, not stakeholder-facing. (Same for the raw SQL cells; see step 7.)
+   (`looker_fetch.py dashboard <id>` still works for a quick normalized contract if you're not running a full extract; `looker_fetch.py sql` is the ad-hoc fallback when you want one query's SQL without a backup.) **Keep the source cell (and the LookML views) in the notebook but never add it to the app layout** — it's a maintainer reference, not stakeholder-facing. (Same for the raw SQL cells; see step 7.)
 
 3. **Read the contract + LookML, then PLAN shared queries — don't default to one SQL per tile.** A dashboard's tiles usually sit on **one explore**, so **cluster tiles** that share base table + join graph + explore-scoped filters (`sql_always_where` / `always_filter`) + a compatible grain into **one SQL cell** (finest grain, union of columns); each chart's EXPLORE aggregates/filters over that dataframe. Strategy + when-to-split → [`reference/lookml-semantics.md`](reference/lookml-semantics.md).
    - ⚠️ **Sweep ALL filter scopes.** An explore's `sql_always_where` / `always_filter` and any dashboard filter with a default apply broadly → put in the shared `WHERE`; a tile's own `query.filters` stay per-cell. Missing a shared-scope filter silently changes totals.
    - ⚠️ **Resolve fields via LookML, not the humanized label.** A tile's `fields` are `view.field` ids — resolve each through the view's `dimension`/`measure`/`dimension_group` definition to its real `sql:` + aggregation. Same caption on two joined views resolves only by the qualified id.
-   - **Translate LookML → dialect SQL** (measures → aggregates; `dimension_group` → `DATE_TRUNC` columns; derived tables → CTEs; `${TABLE}`/`${view.field}` refs resolved; Liquid `{% parameter %}` → Hex input + Jinja; dashboard `dynamic_fields` table calcs → `OVER()`). Full mapping → [`reference/lookml-semantics.md`](reference/lookml-semantics.md). **Cross-check each cluster's SQL against `looker_fetch.py sql` output.**
+   - **Translate LookML → dialect SQL** (measures → aggregates; `dimension_group` → `DATE_TRUNC` columns; derived tables → CTEs; `${TABLE}`/`${view.field}` refs resolved; Liquid `{% parameter %}` → Hex input + Jinja; dashboard `dynamic_fields` table calcs → `OVER()`). Full mapping → [`reference/lookml-semantics.md`](reference/lookml-semantics.md). **Cross-check each cluster's SQL against looker-cooker's `queries.sql`** (the compiled SQL Looker actually runs).
 
 4. **Validate with the run-status oracle.** The Hex CLI can't read cell output — use **COMPLETED-vs-ERRORED** as a boolean oracle to test SQL validity, probe schema, and check type-casts. Fix until COMPLETED.
 
@@ -125,10 +125,10 @@ Why: even with Looker's value oracle, the agent is **blind to rendered layout**,
 
 6. **Build the dashboard — two options; let the customer pick.** The QA'd SQL cells from step 5 are the input either way.
    - **Option A — this coding agent hand-builds the native cells** (like the Tableau migration): clone-and-override from `templates/`, mapping each Looker tile type to a Hex cell → [`reference/building-cells.md`](reference/building-cells.md). **Cost:** the customer's frontier-model subscription tokens; **no Hex credits.** Fully deterministic and inspectable, but you're blind to the rendered result (visual QA gate matters).
-   - **Option B — hand the build to Hex's notebook agent** (`hex thread create "<scoped prompt>" --project <id>`; poll `hex thread get`; iterate `hex thread continue`). **Cost:** Hex credits; **upside:** it designs charts + layout in Hex house style and generally produces a better-looking dashboard + SQL than a blind hand-build. Scope the prompt (audience + business question + the tiles), don't over-specify styling — over-determined prompts get dropped. Prereq: the project already has the QA'd SQL cells; the "headless agent threads" feature must be enabled for the workspace.
+   - **Option B — hand the build to Hex's notebook agent** (`hex thread create "<scoped prompt>" --project <id>`; poll `hex thread get`; iterate `hex thread continue`). **Cost:** Hex credits; **upside:** it designs charts + layout in Hex house style and generally produces a better-looking dashboard + SQL than a blind hand-build. Scope the prompt (audience + business question + the tiles), don't over-specify styling — over-determined prompts get dropped. **Read looker-cooker's `screenshot.png` and describe the source layout in the prompt** ("match this arrangement: KPI row on top, trend hero, breakdowns below") so the agent reproduces the original. Prereq: the project already has the QA'd SQL cells; the "headless agent threads" feature must be enabled for the workspace.
    - **How to choose:** default to **B** when the customer has Hex credits to spend and wants the best-looking result fastest; use **A** when they'd rather spend frontier-model tokens (their Claude subscription) than Hex credits, or want every cell deterministic and diff-able. Say the tradeoff out loud and let them decide.
 
-7. **Run and QA.** `hex project run` (async — poll `run status`), then hand the project link to the customer for visual QA. Set the app layout via export/import if desired → [`reference/gotchas.md`](reference/gotchas.md).
+7. **Run and QA.** `hex project run` (async — poll `run status`). **Self-check against the source screenshot first:** looker-cooker's `screenshot.png` is the rendered Looker original — read it, read a screenshot of the built Hex app, and compare tile-for-tile (chart kind, layout, number formats) before handing off. Then hand the project link to the customer for the final visual-QA sign-off. Set the app layout via export/import if desired → [`reference/gotchas.md`](reference/gotchas.md).
 
 8. **Ship the semantic layer (once per model/explore).** Hand the customer a governed layer, not just charts, so their team can self-serve in Threads / the notebook agent.
    - **Default — a Hex guide (fully headless).** Mirror the LookML model as a retrieved guide (canonical measures + join patterns + migration risk areas), published via `hex guide preview`/`publish` (Markdown; no pre-existing anything). Template + what-to-keep-out → [`reference/datasource-guide.md`](reference/datasource-guide.md).
@@ -171,11 +171,15 @@ On rerun, skip any dashboard whose `status` is `verified` (or `run`, if re-verif
 
 # Files in this skill
 - `SKILL.md` — this playbook (workflow spine).
-- `reference/` — on-demand detail: `connection-mapping.md`, `lookml-semantics.md` (Phase 1), `sql-review.md` (Phase 1.5 review gate), `building-cells.md` (Phase 2 option A — coding agent), `datasource-guide.md` (headless guide), `semantic-model.md` (optional governed semantic model via `hex context`), `gotchas.md`.
+- `reference/` — on-demand detail: `extraction.md` (Phase 1 front-end — looker-cooker), `connection-mapping.md`, `lookml-semantics.md` (Phase 1), `sql-review.md` (Phase 1.5 review gate), `building-cells.md` (Phase 2 option A — coding agent), `datasource-guide.md` (headless guide), `semantic-model.md` (optional governed semantic model via `hex context`), `gotchas.md`.
 - `templates/` — clone-and-override native Hex cell configs (METRIC + EXPLORE bar/line/area/pie/scatter/faceted/pivot, `_filter_snippet.json`) + `semantic-model.example.yaml` (the target format for the optional semantic model).
 - `scripts/looker_fetch.py` — Looker REST API 4.0 client: `whoami` / `list-*` / `connection` / `explore` / `dashboard` / `look` / **`sql`** (generated SQL) / **`query`** (reference values) / `raw`.
 - `credentials/looker.env.example` — template for the Looker base URL + API3 key. Copy to `looker.env` (gitignored); or use `~/.looker/looker.ini`.
 - `looker_exports/`, `working/` — local downloads + scratch YAML (gitignored).
+
+## Extraction (Phase 1)
+- **[looker-cooker](https://github.com/nick-at/looker-cooker)** (MIT) — the bulk extractor: `pip install git+https://github.com/nick-at/looker-cooker.git && playwright install chromium`, then `looker-cooker [--dashboard-id <id> | --limit N] --output-dir working/`. Produces per-dashboard `metadata.json` / `dashboard.lookml` / `screenshot.png` / `queries.sql`, resumable. → [`reference/extraction.md`](reference/extraction.md).
+- **`scripts/looker_fetch.py`** — complements it: `connection <name>` (dialect for mapping) + `query <spec>` (reference VALUES for the parity gate — looker-cooker doesn't fetch result rows).
 
 ## Hex CLI cheat-sheet (verified against `hex 1.2026.07.21`)
 - **Guides (headless):** `hex guide preview <*.md>` → `preview_id`; `hex guide publish <preview_id>`. Markdown only.
