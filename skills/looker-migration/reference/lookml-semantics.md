@@ -11,11 +11,14 @@ every 1:1 function rename (see "Dialect" below).
 
 ## Use Looker's generated SQL as the reference — don't reverse-engineer blind
 
-Before translating a cluster, get Looker's own SQL and its values:
+Before translating a cluster, work from Looker's own compiled SQL and its values.
+
+- **Compiled SQL** — if you ran the looker-cooker extract ([`extraction.md`](extraction.md)), it's already on disk as each dashboard's **`queries.sql`** (every tile's SQL). That's the primary reference. Where you didn't extract, or want one query ad-hoc, `looker_fetch.py sql` fetches the same thing per query. (Both hit `POST /queries/run/sql` — every `looker_fetch.py sql` mention below is just the per-query equivalent of reading `queries.sql`.)
+- **Reference values** — `looker_fetch.py query` (looker-cooker does *not* fetch result rows, so this is the values oracle for the Phase-1.5 parity gate).
 
 ```bash
-python3 scripts/looker_fetch.py sql   <tile-query-spec>.json   # POST /queries/run/sql -> generated SQL
-python3 scripts/looker_fetch.py query <tile-query-spec>.json   # POST /queries/run/json -> actual rows
+python3 scripts/looker_fetch.py sql   <tile-query-spec>.json   # POST /queries/run/sql -> generated SQL (ad-hoc; = queries.sql)
+python3 scripts/looker_fetch.py query <tile-query-spec>.json   # POST /queries/run/json -> actual rows (parity oracle)
 ```
 
 `sql` gives you the exact warehouse SQL Looker runs (in the resolved dialect, with
