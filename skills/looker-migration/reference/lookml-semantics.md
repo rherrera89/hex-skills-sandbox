@@ -245,7 +245,6 @@ Then emit **one SQL cell per cluster**, selecting the **union of every field + m
 - a **scalar KPI** off an unrelated aggregation — a tiny dedicated query beats rolling it out of a wide df;
 - a **ratio-of-measures / non-additive measure** (margin %, conversion rate, `type: number` measures dividing two sums). A Hex EXPLORE/METRIC aggregates a **single column** with one built-in aggregation — it **cannot** compute `SUM(a)/SUM(b)`. Emit a thin **companion grouped SQL that reads the shared dataframe**: `SELECT dim, SUM(a)/SUM(b) AS ratio FROM {{shared_df}} GROUP BY dim`; the chart plots `ratio`. Because it *reads* the consolidated cell, it doesn't fork the base query.
   ⚠️ This is a **dataframe-SQL cell** (`dataFrameCell: true`, `dataConnectionId: null`) — `hex cell create` **can't** mint one (it ERRORs); author it in YAML, or read from the warehouse instead. See [`building-cells.md`](building-cells.md).
-  (Higher-fidelity alternative: define the ratio as a semantic-model MEASURE.)
 
 **Make it reviewable:** record the `sql_cell → [tiles]` mapping in the plan/manifest. Target the **fewest SQL cells that don't force an incompatible grain** — usually 1–3 per dashboard, not one per tile.
 

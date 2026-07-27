@@ -32,7 +32,7 @@ Looker has two independent layers (same split the semantic-layer migration liter
 
 | Layer | Source (production = API-first) | Becomes in Hex |
 |---|---|---|
-| **Semantic model** | LookML views + model + explores (Looker API, or `.lkml` files offline) | shared SQL cells + a **Hex guide** (default, fully headless) — and *optionally* a governed **semantic model** (`type: model`/`view`), see step 8 |
+| **Semantic model** | LookML views + model + explores (Looker API, or `.lkml` files offline) | shared SQL cells + a **Hex guide** (the semantic layer, fully headless) |
 | **Dashboards** | `GET /dashboards/{id}` — covers **user-defined (UDD) AND LookML** dashboards, same JSON | a Hex project: SQL cells + native chart/KPI cells + app layout |
 | **Looks** | `GET /looks/{id}` — one saved query | one chart/KPI cell (a thin one-tile case of the dashboard path) |
 
@@ -44,8 +44,7 @@ Looker has two independent layers (same split the semantic-layer migration liter
 - [`reference/lookml-semantics.md`](reference/lookml-semantics.md) — **Phase 1 (code conversion):** LookML construct → warehouse SQL/Python (dimensions, measures, `dimension_group`, derived tables/PDTs, joins, `sql_always_where`/`access_filter`, `filters`/`parameters` + Liquid, dashboard table calcs), the per-dialect docs step, and SQL consolidation into shared cells. **Use Looker's generated SQL as the reference.**
 - [`reference/sql-review.md`](reference/sql-review.md) — **Phase 1.5 (SQL-fidelity review gate):** ledger → independent re-derivation & diff → mistake-class checklist → **numeric parity against Looker's own values** + differential oracle probes. Catches semantically-wrong SQL that *passes* the run oracle.
 - [`reference/building-cells.md`](reference/building-cells.md) — **Phase 2, option A (coding agent hand-builds):** the Looker-tile → Hex-cell map + native-cell template library + styling map. (Option B — the notebook-agent handoff — is in step 6 below.)
-- [`reference/datasource-guide.md`](reference/datasource-guide.md) — author a Hex **guide** mirroring the LookML model (the default, fully-headless semantic layer for Threads/agent), published via `hex guide`. LookML *is* a semantic model — this is a near-direct lift.
-- [`reference/semantic-model.md`](reference/semantic-model.md) — **optional, higher-fidelity:** construct a governed Hex **semantic model** (`type: model`/`view`) from LookML and publish it via `hex context`. Requires one manual UI step (create the empty semantic project). Example: [`templates/semantic-model.example.yaml`](templates/semantic-model.example.yaml).
+- [`reference/datasource-guide.md`](reference/datasource-guide.md) — author a Hex **guide** mirroring the LookML model (the semantic layer for Threads/agent), published headlessly via `hex guide`. LookML *is* a semantic model — this is a near-direct lift.
 - [`reference/gotchas.md`](reference/gotchas.md) — LookML/Looker-API parsing correctness rules, Hex CLI quirks, app layout.
 
 ## What you need before starting
@@ -58,7 +57,7 @@ Looker has two independent layers (same split the semantic-layer migration liter
 ## Workflow at a glance
 0. **Prioritize & organize** the customer's dashboards → one shortlist.
 1. **Pilot 1–2 dashboards** end-to-end, QA, tune.
-2. **Port each dashboard:** resolve connection → fetch contract + generated SQL → plan+build SQL → validate → **SQL-fidelity review (with numeric parity)** → build the dashboard (coding agent **or** notebook agent) → run → ship the semantic layer (guide, +optional semantic model).
+2. **Port each dashboard:** resolve connection → fetch contract + generated SQL → plan+build SQL → validate → **SQL-fidelity review (with numeric parity)** → build the dashboard (coding agent **or** notebook agent) → run → ship the semantic layer as a Hex guide.
 3. **Batch the rest** with the folder loop + manifest.
 
 ---
@@ -130,9 +129,7 @@ Why: looker-cooker's screenshots + Looker's value oracle mean the agent can self
 
 7. **Run and QA.** `hex project run` (async — poll `run status`). **Self-check against the source screenshot first:** looker-cooker's `screenshot.png` is the rendered Looker original — read it, read a screenshot of the built Hex app, and compare tile-for-tile (chart kind, layout, number formats) before handing off. Then hand the project link to the customer for the final visual-QA sign-off. Set the app layout via export/import if desired → [`reference/gotchas.md`](reference/gotchas.md).
 
-8. **Ship the semantic layer (once per model/explore).** Hand the customer a governed layer, not just charts, so their team can self-serve in Threads / the notebook agent.
-   - **Default — a Hex guide (fully headless).** Mirror the LookML model as a retrieved guide (canonical measures + join patterns + migration risk areas), published via `hex guide preview`/`publish` (Markdown; no pre-existing anything). Template + what-to-keep-out → [`reference/datasource-guide.md`](reference/datasource-guide.md).
-   - **Optional — a governed semantic model (`type: model`/`view`).** For customers who want an enforced metrics layer (many ex-Looker teams will), construct Hex semantic YAML from the LookML and publish via `hex context`. ⚠️ **One manual UI step:** the customer creates an empty semantic project in Hex and gives you its id (the CLI can't create one; `hex context` only *populates* an existing project). Then it's CLI the rest of the way. Full mapping + flow → [`reference/semantic-model.md`](reference/semantic-model.md).
+8. **Ship the semantic layer as a Hex guide (once per model/explore).** Hand the customer a retrieved semantic layer, not just charts, so their team can self-serve in Threads / the notebook agent. Mirror the LookML model as a guide (canonical measures + join patterns + migration risk areas) and publish it headlessly via `hex guide preview`/`publish` (Markdown; no pre-existing anything). Template + what-to-keep-out → [`reference/datasource-guide.md`](reference/datasource-guide.md).
 
 ---
 
@@ -171,8 +168,8 @@ On rerun, skip any dashboard whose `status` is `verified` (or `run`, if re-verif
 
 # Files in this skill
 - `SKILL.md` — this playbook (workflow spine).
-- `reference/` — on-demand detail: `extraction.md` (Phase 1 front-end — looker-cooker), `connection-mapping.md`, `lookml-semantics.md` (Phase 1), `sql-review.md` (Phase 1.5 review gate), `building-cells.md` (Phase 2 option A — coding agent), `datasource-guide.md` (headless guide), `semantic-model.md` (optional governed semantic model via `hex context`), `gotchas.md`.
-- `templates/` — clone-and-override native Hex cell configs (METRIC + EXPLORE bar/line/area/pie/scatter/faceted/pivot, `_filter_snippet.json`) + `semantic-model.example.yaml` (the target format for the optional semantic model).
+- `reference/` — on-demand detail: `extraction.md` (Phase 1 front-end — looker-cooker), `connection-mapping.md`, `lookml-semantics.md` (Phase 1), `sql-review.md` (Phase 1.5 review gate), `building-cells.md` (Phase 2 option A — coding agent), `datasource-guide.md` (headless guide), `gotchas.md`.
+- `templates/` — clone-and-override native Hex cell configs (METRIC + EXPLORE bar/line/area/pie/scatter/faceted/pivot, `_filter_snippet.json`).
 - `scripts/looker_fetch.py` — Looker REST API 4.0 client: `whoami` / `list-*` / `connection` / `explore` / `dashboard` / `look` / **`sql`** (generated SQL) / **`query`** (reference values) / `raw`.
 - `credentials/looker.env.example` — template for the Looker base URL + API3 key. Copy to `looker.env` (gitignored); or use `~/.looker/looker.ini`.
 - `looker_exports/`, `working/` — local downloads + scratch YAML (gitignored).
@@ -182,6 +179,6 @@ On rerun, skip any dashboard whose `status` is `verified` (or `run`, if re-verif
 - **`scripts/looker_fetch.py`** — complements it: `connection <name>` (dialect for mapping) + `query <spec>` (reference VALUES for the parity gate — looker-cooker doesn't fetch result rows).
 
 ## Hex CLI cheat-sheet (verified against `hex 1.2026.07.21`)
-- **Guides (headless):** `hex guide preview <*.md>` → `preview_id`; `hex guide publish <preview_id>`. Markdown only.
-- **Semantic model (optional):** `hex context preview [--config-path <p>] [--base draft|latest]` → `preview_id`; `hex context publish <preview_id|->`. Driven by a `hex_context.config.json` with a **`semanticProjects: [{id, path}]`** array (key is `semanticProjects`, *not* `semanticModels` — the alpha docs are stale) and/or **`guides`**. The `id` must be an **existing** semantic project (create the empty shell in the UI first; a nonexistent id → `Forbidden`). `hex context`'s subcommands are hidden from `--help` but real.
-- **Notebook agent (Phase 2 option B):** `hex thread create <prompt> [--project <id> | --new-project] [--preview-id <id>]` → poll `hex thread get <id>` → `hex thread continue <id> <prompt>`. Uses Hex credits; needs the headless-agent-threads feature.
+- **Project build (Phase 2 option A):** `hex project export <id> -o f.yaml` → edit → `hex project import f.yaml`; `hex cell create/update/run`; `hex project run` (async, poll `hex run status`).
+- **Guide (semantic layer, headless):** `hex guide preview <*.md>` → `preview_id`; `hex guide publish <preview_id>`. Markdown only.
+- **Notebook agent (Phase 2 option B):** `hex thread create <prompt> [--project <id> | --new-project]` → poll `hex thread get <id>` → `hex thread continue <id> <prompt>`. Uses Hex credits; needs the headless-agent-threads feature.

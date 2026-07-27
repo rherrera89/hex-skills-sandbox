@@ -79,17 +79,17 @@ Preview first (test the agent's behavior with the new guide), then publish. Guid
 files can be version-controlled and re-published as the migration or the LookML
 evolves.
 
-## Compose with the other context assets (optional, higher fidelity)
+## Compose with the other context assets (optional)
 
-The guide is the fast, **fully headless** win — ship it always. For a governed,
-*queryable* metrics layer (LookML measures + joins that must tie to the cent), add
-a Hex **semantic model** (`type: model`/`view`) — the near-1:1 LookML lift — via
-[`semantic-model.md`](semantic-model.md). That path needs one manual UI step (create
-the empty semantic project) and then publishes via `hex context`. For endorsements
-and warehouse descriptions, use the **`hex-context-best-practices`** skill. None of
-these is required to ship the guide.
+The guide is the fully-headless semantic layer this skill ships. For a richer
+context setup — endorsements, warehouse descriptions, or a formal Hex semantic
+model — use the **`hex-context-best-practices`** skill. (A formal semantic model
+isn't part of this migration's headless flow: publishing one via `hex context`
+requires first creating the semantic project in the Hex UI, so it's out of scope
+here — the guide covers the semantic layer.) None of this is required to ship the
+guide.
 
 > Because LookML is a real semantic model, the mapping is close to 1:1: a LookML
-> `measure` → a guide Canonical Metric (or a semantic-model MEASURE); a LookML
+> `measure` → a guide Canonical Metric; a LookML
 > `explore` join graph → the Join Patterns. This is the highest-leverage,
 > lowest-effort deliverable in the migration — don't skip it.

@@ -13,7 +13,7 @@ Looker has two independent layers; the skill converts them separately:
 
 | Layer | Source (production = API-first) | Becomes in Hex |
 |---|---|---|
-| **Semantic model** | LookML views + model + explores (Looker API, or `.lkml` files offline) | shared SQL cells + a Hex **guide** (default, headless) — and optionally a governed **semantic model** (`type: model`/`view`) via `hex context` |
+| **Semantic model** | LookML views + model + explores (Looker API, or `.lkml` files offline) | shared SQL cells + a Hex **guide** (the semantic layer, headless) |
 | **Dashboards / Looks** | `GET /dashboards/{id}` / `GET /looks/{id}` — **user-defined (UDD) AND LookML**, same JSON | a Hex project: SQL + native chart/KPI cells + app layout |
 
 **UDD is the primary path** — most real dashboards are user-defined (in no `.lkml` file) and reachable only via the API.
@@ -41,8 +41,8 @@ Then invoke it via your agent (e.g. a `/looker-migration` command), or just ask 
 | Path | What |
 |------|------|
 | `SKILL.md` | The playbook — lean workflow spine (the agent reads this to run a migration) |
-| `reference/` | On-demand detail: `extraction.md` (Phase 1 front-end: looker-cooker), `connection-mapping.md`, `lookml-semantics.md` (Phase 1: LookML → SQL/Python + consolidation), `sql-review.md` (Phase 1.5: SQL-fidelity gate + numeric parity), `building-cells.md` (Phase 2 option A: coding agent builds cells), `datasource-guide.md` (headless guide), `semantic-model.md` (optional governed semantic model via `hex context`), `gotchas.md` |
-| `templates/` | Clone-and-override native Hex cell configs (METRIC, EXPLORE variants) + `semantic-model.example.yaml` |
+| `reference/` | On-demand detail: `extraction.md` (Phase 1 front-end: looker-cooker), `connection-mapping.md`, `lookml-semantics.md` (Phase 1: LookML → SQL/Python + consolidation), `sql-review.md` (Phase 1.5: SQL-fidelity gate + numeric parity), `building-cells.md` (Phase 2 option A: coding agent builds cells), `datasource-guide.md` (headless guide), `gotchas.md` |
+| `templates/` | Clone-and-override native Hex cell configs (METRIC, EXPLORE variants) |
 | `scripts/looker_fetch.py` | Looker REST API 4.0 client — `whoami` / `list-*` / `connection` / `explore` / `dashboard` / `look` / `sql` / `query` / `raw` |
 | `credentials/` | `looker.env.example` (copy → `looker.env`, gitignored) |
 | `looker_exports/`, `working/` | Local downloads + scratch (gitignored) |
