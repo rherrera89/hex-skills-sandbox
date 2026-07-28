@@ -11,7 +11,7 @@ description: >-
 
 # Tableau → Hex Migration
 
-A CLI-driven migration where **the Agent does the porting** (not Hex's in-product Notebook Agent). You fetch a Tableau workbook, read its XML as the source of truth, rebuild each worksheet as Hex SQL + native chart cells against a real data connection, and QA with screenshots.
+A CLI-driven migration. You fetch a Tableau workbook, read its XML as the source of truth, rebuild each worksheet as Hex SQL + native chart cells against a real data connection, and QA with screenshots. The **viz build-out (Phase 2) is a choice** you offer the customer: **by default, hand the build to Hex's in-product notebook agent** via `hex thread` (designs charts + layout in Hex house style, generally a better-looking dashboard, spends Hex credits) — or fall back to *this coding agent* hand-building the native cells (spends their frontier-model subscription tokens, no Hex credits, fully deterministic/diff-able). The accuracy layer (connection + SQL translation + the fidelity gate) is always the coding agent's job regardless.
 
 **Priority order (say this to the customer up front):** (1) **accuracy** of SQL + visuals first, (2) **similar look & feel** second. Some Tableau features have no clean 1:1 in Hex (maps, LOD/detail tooltips, cosmetic styling) — name those early so "it isn't pixel-identical" is never a surprise. Philosophy: **cover the basis, don't gold-plate.**
 
@@ -32,7 +32,7 @@ A CLI-driven migration where **the Agent does the porting** (not Hex's in-produc
 ## Workflow at a glance
 0. **Prioritize & organize** the customer's dashboards → one folder.
 1. **Pilot 1–2 dashboards** end-to-end, QA, tune.
-2. **Port each workbook:** resolve connection → parse XML → plan+build SQL → validate → **SQL-fidelity review** → build native cells → run.
+2. **Port each workbook:** resolve connection → parse XML → plan+build SQL → validate → **SQL-fidelity review** → build the dashboard (notebook agent by default, or coding agent) → run.
 3. **Batch the rest** with the folder loop + manifest.
 
 ---
@@ -94,13 +94,20 @@ Why: the agent is **blind to rendered output**, so a human check on a tiny first
    - **Translate calcs/LOD/window/params** into the resolved dialect's SQL (LOD → `OVER (PARTITION BY)`; table calcs resolve in SQL, not the chart; params → Hex input cells + Jinja). Full mapping → [`reference/tableau-semantics.md`](reference/tableau-semantics.md).
    - (The above, plus the relative-date off-by-one, are detailed in [`reference/gotchas.md`](reference/gotchas.md).)
 
-4. **Validate with the run-status oracle.** The Hex CLI can't read cell output — use **COMPLETED-vs-ERRORED** as a boolean oracle to test SQL validity, probe schema, and check type-casts. Fix until COMPLETED.
+4. **Validate — read the output, don't just check status.** `hex cell run <cell_id> --with-output` **returns the result rows** (not only COMPLETED/ERRORED), so you can read the actual grain, row count, and sample values to sanity-check each cell — a big step up from the blind status oracle. The COMPLETED-vs-ERRORED signal still works as a fast boolean for schema/type probes; keep both. Fix until it runs and the values look right. ⚠️ After a YAML **import**, `hex cell run` wants the **API cell id from `hex cell list`**, *not* the `cellId` shown in the export (they differ). Details → [`reference/gotchas.md`](reference/gotchas.md).
 
 5. **SQL-fidelity review gate (mandatory — don't skip to charts).** The oracle proves the SQL *runs*, not that it's *right*. Before building any cells, run an **independent, structured, targeted** review of each SQL cluster to catch the errors that pass the oracle but are semantically wrong (missed context filter, off-by-one date window, `COUNT` vs `COUNTD`, wrong grain, fan-out join, caption-not-formula). Write a **translation ledger** (source→target per worksheet), **independently re-derive** the intended SQL from the `.twb` and **diff** it (spawn a subagent where the host supports it — Claude Code — else re-derive with fresh eyes), run the **mistake-class checklist**, and **prove** suspect filters/joins with differential oracle probes. Any divergence → fix, re-run step 4, re-review. Full procedure → [`reference/sql-review.md`](reference/sql-review.md).
 
-6. **Build native chart/KPI cells** by clone-and-override from `templates/` — see [`reference/building-cells.md`](reference/building-cells.md).
+6. **Build the dashboard — notebook agent by default, coding agent as fallback.** The QA'd SQL cells from step 5 are the input either way; **the choice is only who turns them into charts + layout.** Say the tradeoff out loud and let the customer decide.
+   - **Default — hand the build to Hex's notebook agent** (`hex thread create "<scoped prompt>" --project <id>`; poll `hex thread get <id>`; iterate with `hex thread continue <id> "<prompt>"`). **Cost:** Hex credits; **upside:** it designs charts + layout and generally produces a better-looking dashboard than a blind hand-build.
+     - **⚠️ Give the customer the live URL immediately.** `hex thread create --json` returns a `url` (the project's `/draft/logic?threadId=…`). **Surface it to the customer as soon as the thread starts** so they can *watch the agent build in real time and intervene/stop it* if it goes off-track — the build runs several minutes and is otherwise a black box. Don't just poll silently.
+     - **Reference the exact cells + forbid new SQL.** Name the QA'd dataframes (`opp_base`, any companions) in the prompt, say which chart reads which, and tell it **not to rewrite or add SQL cells** — only chart/KPI/input cells. Flag precomputed columns (a running-total, a ratio) as *ready — don't recompute*. (Verified: it then leaves the SQL cells untouched and binds charts to them.)
+     - **Prompt framing decides the output *form*.** A **chart-type-prescriptive** prompt ("bar/line/area/pie… with these fields") yields **native EXPLORE/METRIC cells** (deterministic, diff-able YAML — the migration-friendly result). A loose "make an app" prompt yields a **custom React app** (`genAppFiles`) — richer but not native cells and not diff-able. For a *migration*, prescribe chart types.
+     - Scope the prompt (audience + business question + worksheet→chart map + layout order); don't over-specify cosmetic styling — over-determined prompts get dropped.
+     - **Prereq:** the project already holds the QA'd SQL cells (this coding agent creates the project + SQL first — step 2–5); the "headless agent threads" feature must be enabled for the workspace.
+   - **Fallback — this coding agent hand-builds the native cells:** clone-and-override from `templates/`, mapping each worksheet to a Hex cell → [`reference/building-cells.md`](reference/building-cells.md). **Cost:** the customer's frontier-model subscription tokens; **no Hex credits.** Fully deterministic and diff-able, but you're blind to the rendered result (the visual-QA gate matters more here). Use when they'd rather spend model tokens than Hex credits, or want every cell inspectable.
 
-7. **Run and QA.** `hex project run` (async — poll `run status`), then hand the project link to the customer for visual QA. Set the app layout via export/import if desired → [`reference/gotchas.md`](reference/gotchas.md).
+7. **Run and QA.** `hex project run` (async — poll `run status`), then hand the project link to the customer for visual QA. Give them a **side-by-side**: export the original's PNGs with `scripts/tableau_shots.py "<workbook name>"` (dashboard + each worksheet → `tableau_exports/shots/`) and compare against the migrated app. You **can't** render the Hex app yourself (it's behind login — never enter credentials), so this human visual check is the real gate. Set the app layout via export/import if desired → [`reference/gotchas.md`](reference/gotchas.md).
 
 8. **Author a Hex guide for the data source (once per data source).** Ship a semantic layer, not just charts: mirror the Tableau data source as a retrieved Hex guide (canonical metrics + join patterns + migration risk areas) so the customer's team can self-serve in Threads / the Notebook Agent. Built from the Phase-1 parse, reused across every dashboard on that data source, published headless via `hex guide preview`/`publish`. Template + what-to-keep-out → [`reference/datasource-guide.md`](reference/datasource-guide.md).
 
@@ -112,7 +119,7 @@ Point at a folder of `.twb` files and migrate them as a set. Three phases:
 
 **Phase 1 — parallel, read-only (safe to fan out):** scan → parse each workbook (worksheets, marks, calcs, filters at all scopes, datasource) → resolve each connection (fetch `.tdsx` if `sqlproxy`) → **cluster worksheets into shared queries** → produce a per-workbook **plan** (connection, `sql_cell → [charts]` clusters, chart specs). **Batch every ambiguous-connection question into ONE ask** — don't stop per workbook.
 
-**Phase 2 — sequential, mutating (one workbook at a time):** run the *Porting a workbook* loop for each — including the **SQL-fidelity review gate** (step 5) after oracle-validation and before building cells; record the gate result in the manifest `notes`. **Write status to the manifest after each** so the batch is resumable and fail-soft — a bad workbook is marked `failed` and skipped, not fatal. **Author each data source's guide once** (step 8) — workbooks sharing a data source share one guide; refresh it, don't duplicate.
+**Phase 2 — sequential, mutating (one workbook at a time):** run the *Porting a workbook* loop for each — including the **SQL-fidelity review gate** (step 5) after oracle-validation and before building cells; record the gate result in the manifest `notes`. **Decide the build path once for the whole batch** (step 6 — notebook agent by default, or coding-agent hand-build), not per workbook. **Write status to the manifest after each** so the batch is resumable and fail-soft — a bad workbook is marked `failed` and skipped, not fatal. **Author each data source's guide once** (step 8) — workbooks sharing a data source share one guide; refresh it, don't duplicate.
 
 **Phase 3 — verify (one batch):** collect all project links and present them for human visual QA in a single pass.
 
@@ -143,5 +150,11 @@ On rerun, skip any workbook whose `status` is `verified` (or `run`, if re-verify
 - `templates/` — clone-and-override native-cell configs (METRIC + EXPLORE bar/line/area/pie/scatter/faceted/pivot, `_filter_snippet.json`).
 - `tableau-zoo/` — regression fixtures (`.twb` inputs + parity ground truth + Hex goldens).
 - `scripts/tableau_fetch.py` — fetch `.twb`/`.twbx` from Tableau Cloud/Server (`--list` / `--name` / `--project`).
+- `scripts/tableau_shots.py` — export PNGs of a workbook's dashboard + worksheets (`"<workbook name>"`) into `tableau_exports/shots/`, for the visual-QA gate (original ↔ migrated side-by-side).
 - `credentials/tableau.env.example` — template for Tableau PAT + pod + site. Copy to `tableau.env` (gitignored).
 - `tableau_exports/`, `working/` — local downloads + scratch YAML (gitignored).
+
+## Hex CLI cheat-sheet (verified against `hex 1.2026.07.21`)
+- **Notebook agent (Phase 2 default):** `hex thread create "<prompt>" [--project <id> | --new-project] [--preview-id <id>] --json` → poll `hex thread get <id>` → `hex thread continue <id> "<prompt>"`. Uses Hex credits; needs the headless-agent-threads feature. Point it at the project **after** the QA'd SQL cells exist (`--project <id>`). **`--json` returns a `url` — hand it to the customer right away so they can watch the build live and stop/redirect it.** `hex thread get` shows `Status: RUNNING`→`IDLE` when done.
+- **Cells:** `hex cell create` makes **only** code/sql/markdown (a warehouse SQL cell attaches the connection to the project). **INPUT (parameter) cells and connection-less dataframe-SQL companion cells (`dataFrameCell: true`) cannot be minted by the CLI — author them in YAML** (export → edit `cells[]` → import). `hex cell run <id> --with-output` returns result rows; after a YAML import use the **API id from `hex cell list`**, not the export `cellId`.
+- **Guides (headless):** `hex guide preview <*.md>` → `preview_id`; `hex guide publish <preview_id>`. Markdown only.

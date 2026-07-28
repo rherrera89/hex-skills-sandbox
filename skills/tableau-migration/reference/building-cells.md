@@ -1,4 +1,14 @@
-# Building Hex cells (Phase 2: SQL → native chart cells)
+# Building Hex cells (Phase 2, fallback: coding agent hand-builds)
+
+This is the **fallback** Phase-2 build — *this coding agent* turns the Phase-1
+SQL cells into native Hex chart/KPI cells by cloning templates. It spends the
+customer's frontier-model subscription tokens and **no Hex credits**, and every
+cell is deterministic and diff-able — but you're blind to the rendered result, so
+the human visual-QA gate matters. **The default path** instead hands the same
+QA'd SQL cells to **Hex's notebook agent** (`hex thread create`), which designs
+charts + layout in house style (usually better-looking) at the cost of Hex
+credits — see SKILL.md step 6 for the choice and the prompt shape. Use this doc
+when you're on the hand-build fallback.
 
 How to turn the Phase-1 SQL cells into native Hex chart/KPI cells by cloning
 templates. (The SQL shape itself — clustering worksheets into shared queries —

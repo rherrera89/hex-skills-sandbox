@@ -2,6 +2,8 @@
 
 A durable, portable **agent skill** that migrates Tableau dashboards into Hex — fetch the workbook, parse its XML, map the data connection, and rebuild each worksheet as Hex SQL + native chart cells. It's a standard [Agent Skill](https://vercel.com/docs/agent-resources/skills), so it works with any terminal coding agent (Codex, Cursor, Claude Code, …) — see the [repo README](../../README.md#using-with-other-agents-codex-cursor-) for multi-agent install.
 
+The **viz build-out is a choice** the customer makes: by default, Hex's **notebook agent** builds the charts + layout via `hex thread` (better-looking dashboards in Hex house style, spends Hex credits); or the coding agent hand-builds the cells as a fallback (spends their frontier-model subscription tokens, no Hex credits, fully deterministic). The accuracy layer — connection mapping, Tableau→SQL translation, and the SQL-fidelity gate — is always the coding agent's job.
+
 **The full playbook lives in [`SKILL.md`](SKILL.md).** That's the canonical doc the agent reads.
 
 ## Install (make it invocable)
@@ -28,6 +30,7 @@ Either drops the skill into your agent's skills directory (secrets and local scr
 | `tableau-zoo/` | The "Tableau Zoo" — regression fixtures (`.twb` inputs + parity ground truth + Hex goldens) |
 | `templates/` | Clone-and-override native Hex cell configs (METRIC, EXPLORE variants) |
 | `scripts/tableau_fetch.py` | Fetch `.twb`/`.twbx` from Tableau Cloud/Server |
+| `scripts/tableau_shots.py` | Export PNGs of a workbook's dashboard + worksheets for visual QA |
 | `credentials/` | `tableau.env.example` (copy → `tableau.env`, gitignored) |
 | `tableau_exports/`, `working/` | Local downloads + scratch (gitignored) |
 

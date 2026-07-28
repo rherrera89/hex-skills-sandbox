@@ -108,9 +108,17 @@ error; the linked docs carry the full rule.
 
 ## 4. Differential probes — prove behavior with the oracle
 
-The oracle only returns COMPLETED/ERRORED, so turn each assertion into an
-expression that **raises divide-by-zero (→ ERRORED) exactly when the assertion is
-violated**. General form:
+> **First: you can now read values directly.** `hex cell run <cell_id> --with-output`
+> returns the result rows, so for a magnitude check (does this cluster's total /
+> row count / distinct count match what the source rendered?) just **run it and
+> read the number** — no div-by-zero trick needed. This is the biggest upgrade to
+> the gate: use it for the numeric sanity-checks the review used to be blind to.
+> The divide-by-zero probes below are still valuable when you want the assertion
+> itself to be the pass/fail signal (a hard gate that ERRORs on violation), or to
+> assert over the *warehouse* base before the cell exists.
+
+Turn each assertion into an expression that **raises divide-by-zero (→ ERRORED)
+exactly when the assertion is violated**. General form:
 
 ```sql
 SELECT 1.0 / (CASE WHEN <assertion-holds> THEN 1 ELSE 0 END)
