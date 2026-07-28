@@ -1,0 +1,7 @@
+# secrets + local downloads + working artifacts — never commit
+credentials/tableau.env
+tableau_exports/
+working/
+
+# macOS
+.DS_Store

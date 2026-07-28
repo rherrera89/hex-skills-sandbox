@@ -1,0 +1,30 @@
+{
+ "cellType": "METRIC",
+ "cellLabel": "Total ARR (Closed Won)",
+ "config": {
+  "title": "Total ARR (Closed Won)",
+  "valueVariableName": "kpi_closed_won_arr",
+  "showComparison": false,
+  "comparisonType": "VALUE",
+  "comparisonVariableName": null,
+  "comparisonFormat": null,
+  "comparisonLabel": "",
+  "displayFormat": {
+   "format": "CURRENCY",
+   "currency": "USD",
+   "columnType": "NUMBER",
+   "showSeparators": true,
+   "numDecimalDigits": 0,
+   "abbreviateLargeNumbers": true
+  },
+  "valueColumn": "CLOSED_WON_ARR",
+  "valueRowIndex": 0,
+  "valueAggregate": null,
+  "comparisonColumn": null,
+  "comparisonRowIndex": null,
+  "comparisonAggregate": null,
+  "valueResultVariable": null,
+  "comparisonResultVariable": null,
+  "outputResult": false
+ }
+}
