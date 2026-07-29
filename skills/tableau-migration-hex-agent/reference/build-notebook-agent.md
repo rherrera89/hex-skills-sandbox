@@ -38,7 +38,7 @@ Both are driven by the brief; they differ only in who first authors the SQL.
   notebook agent builds the **SQL cells, the parameters, and the charts**. You
   then run the fidelity gate **post-hoc** on what it built (read its SQL + values,
   diff against the `.twb`). Simplest, and it leans fully on the agent's schema +
-  context sight. Verified to reproduce correct, gated SQL from a good brief.
+  context sight — a precise brief yields correct, gate-ready SQL.
 - **Mode B — pre-build the SQL, delegate the viz.** You build + gate the SQL
   cells first, then the agent builds only the charts/params from the brief + those
   cells. Choose this when the **data population is subtle** (aggressive shared
@@ -201,12 +201,15 @@ black box that can be confidently wrong — **verify, don't trust.**
 - **Fix divergences** — either `hex thread continue <id> "<name the exact
   divergence>"`, or edit the cell directly (YAML / `hex cell update`) when a
   surgical fix is faster than another agent round-trip.
-- **Visual QA** — the original ↔ migrated side-by-side (`scripts/tableau_shots.py`
-  exports the Tableau PNGs). Today this coding agent can't render the Hex app
-  itself (it's behind login; never enter credentials), so it's the human gate. The
-  Generative app + `genAppFiles` is exactly what makes an **automated
-  screenshot-diff parity loop** possible (headless browser with a one-time login) —
-  the planned co-authored merge adds it; until then, hand the pair to the customer.
+- **Visual parity** — export the original's PNGs with `scripts/tableau_shots.py`
+  and compare the Tableau and Hex dashboards **panel by panel**: chart type, axes,
+  series and colors, layout order, number formats, tooltips. Seeing the rendered
+  pixels is the only check that catches a panel reading the right data but plotting
+  it wrong (a cumulative line vs a per-day line — same numbers, different picture).
+  The Generative app renders behind a login the CLI can't pass (never enter
+  credentials), so capture the Hex side with a **headless browser signed in once**
+  (the session persists for later automated rounds), or have the customer confirm
+  the side-by-side. Fix discrepancies with `hex thread continue` and re-check.
 
 ## Cheat-sheet
 
