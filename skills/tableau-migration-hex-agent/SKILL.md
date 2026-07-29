@@ -6,7 +6,7 @@ description: >-
   migrate Tableau content (.twb / .twbx, Tableau Cloud/Server views) into Hex —
   this coding agent parses the workbook and writes a precise migration brief, then
   Hex's notebook agent (which can see the live warehouse schema + workspace
-  context) builds the SQL + parameters + native chart cells, and this agent
+  context) builds the SQL + parameters + a Hex Generative app, and this agent
   verifies with a SQL-fidelity gate. Triggers: "migrate Tableau to Hex", "port my
   Tableau dashboards with the Hex agent", "convert a .twb", "Tableau → Hex".
 ---
@@ -17,8 +17,9 @@ A CLI-driven migration where **this coding agent understands the Tableau source 
 verifies the result, and Hex's in-product notebook agent builds the dashboard.**
 You fetch a workbook, read its XML as the source of truth, translate its semantics,
 and write a **migration brief** into the Hex project; the notebook agent reads that
-brief and builds the SQL + parameters + native chart cells; then you run a
-**SQL-fidelity gate** on what it built.
+brief and builds the SQL + parameters + a **Hex Generative app** (a React app Hex
+renders client-side, with the SQL cells kept underneath as data sources); then you
+run a **SQL-fidelity gate** on what it built.
 
 ## Why delegate the build to the notebook agent
 
@@ -123,17 +124,17 @@ Why: neither agent can guarantee the rendered result matches — a human check o
 
 4. **Choose the build path — ASK THE CUSTOMER (decision gate, before any cells are built).** Present the options and let them pick:
 
-   | Mode | Who builds SQL | Who builds viz | Cost | When |
+   | Mode | Who builds SQL | Viz output | Cost | When |
    |---|---|---|---|---|
-   | **A — Delegate all (default)** | notebook agent | notebook agent | Hex credits | default; leans on the agent's schema + context sight |
-   | **B — Pre-built SQL, delegate viz** | this coding agent (YAML) | notebook agent | Hex credits + your model tokens | subtle data population — pin & gate the numbers before viz |
-   | **C — Hand-build (fallback)** | this coding agent | this coding agent | your model tokens | notebook agent unavailable (feature off / no credits) or every cell must be diff-able |
+   | **A — Delegate all (default)** | notebook agent | **Generative app** (agent) | Hex credits | default; leans on the agent's schema + context sight |
+   | **B — Pre-built SQL, delegate viz** | this coding agent (YAML) | **Generative app** (agent) | Hex credits + your model tokens | subtle data population — pin & gate the numbers before viz |
+   | **C — Hand-build (fallback)** | this coding agent | native cells (this agent) | your model tokens | notebook agent unavailable (feature off / no credits) or every cell must be diff-able |
 
-   A and B → [`build-notebook-agent.md`](reference/build-notebook-agent.md). C → [`building-cells.md`](reference/building-cells.md). Default to **A** unless the customer says otherwise; escalate to **B** for high-stakes/subtle-population workbooks. Be honest about cost: Mode C isn't "free" — it spends the customer's frontier-model subscription tokens and builds blind to the warehouse and the rendered result.
+   A and B → [`build-notebook-agent.md`](reference/build-notebook-agent.md). C → [`building-cells.md`](reference/building-cells.md). Default to **A** unless the customer says otherwise; escalate to **B** for high-stakes/subtle-population workbooks. Be honest about cost: Mode C isn't "free" — it spends the customer's frontier-model subscription tokens, builds blind to the warehouse and the rendered result, and produces native cells rather than a Generative app (lower layout fidelity).
 
 5. **Build (per the chosen mode).**
-   - **A / B:** write the **migration brief** (intent, not literal SQL — describe the derivations and *what each represents*, plus params + chart specs + layout + styling), inject it as a project cell, and hand it to the notebook agent (`hex thread create --json` → **give the customer the live URL immediately** so they can watch/intervene). Full procedure + brief template → [`build-notebook-agent.md`](reference/build-notebook-agent.md).
-   - **C:** clone-and-override native cells from `templates/` → [`building-cells.md`](reference/building-cells.md).
+   - **A / B:** write the **migration brief** (intent, not literal SQL — describe the derivations and *what each represents*, plus params + chart specs + layout + styling), inject it as a project cell, and hand it to the notebook agent. **The prompt must demand a Hex Generative app**, and after the thread goes IDLE **verify `genAppFiles` is non-empty** (rebuild-if-classic). `hex thread create --json` → **give the customer the live URL immediately** so they can watch/intervene. Full procedure + brief template → [`build-notebook-agent.md`](reference/build-notebook-agent.md).
+   - **C:** clone-and-override native cells from `templates/` → [`building-cells.md`](reference/building-cells.md) (native cells, not a Generative app).
 
 6. **SQL-fidelity gate (mandatory — the accuracy guarantee).** The gate reviews the SQL *whoever wrote it*. Read every SQL cell's values (`hex cell run --with-output`) and export its source; write a **translation ledger**, **independently re-derive** the intended SQL from the `.twb` and **diff** it (spawn a subagent where supported), run the **mistake-class checklist** (filter scope, relative-date off-by-one, `COUNT` vs `COUNTD`, fan-out join, caption-not-formula, LOD grain), and **prove** suspect filters/joins with differential probes. In Mode A this runs **post-hoc on the agent's build**; in B/C, before/after the viz. Any divergence → fix (Mode A: `hex thread continue` naming the divergence, or edit the cell; B/C: edit the SQL) and re-check. Full procedure → [`sql-review.md`](reference/sql-review.md).
 

@@ -2,8 +2,9 @@
 
 The **default way to build the dashboard**: hand the work to Hex's in-product
 notebook agent (`hex thread`), driven by a **migration brief** you write into the
-project. Use this doc once you've parsed the workbook (Phase 1) and the customer
-has chosen a notebook-agent mode at the build-path gate (SKILL.md).
+project. **The target output is a Hex Generative app** (see the next section). Use
+this doc once you've parsed the workbook (Phase 1) and the customer has chosen a
+notebook-agent mode at the build-path gate (SKILL.md).
 
 ## Why the notebook agent is the better builder here
 
@@ -48,6 +49,41 @@ Both are driven by the brief; they differ only in who first authors the SQL.
 
 When unsure, default to **A** and rely on the post-hoc gate; escalate to **B** for
 high-stakes or subtle-population workbooks.
+
+---
+
+## Target: a Hex Generative app (not a classic notebook app)
+
+**Build the dashboard as a Hex Generative app** (App builder → *Generative app* — a
+React app Hex renders client-side), with the **SQL cells kept underneath as the
+data sources**. This is the default for this skill, for two reasons:
+
+- **It's where Hex is taking dashboards.** Generative apps are the strategic
+  surface — pixel-level layout control (custom KPI cards, formula rows, hover
+  tooltips, side-by-side groupings) that classic app-builder cells can't express —
+  so a migration lands better long-term as one.
+- **It preserves everything underneath.** The SQL cells (+ params) still exist as
+  the data layer, so the fidelity gate, the semantic-layer guide, and Threads
+  self-serve all work exactly the same — the Generative app is a viz layer *on top*
+  of clean SQL, not a replacement for it.
+
+⚠️ **There is no CLI flag for app type.** `hex thread create` builds a **classic
+notebook+app by default** unless the prompt **explicitly demands a Generative app**
+— the prompt wording is the only control. So:
+
+1. The build prompt must **open by demanding a Generative app** (the template below
+   does).
+2. **After the thread goes IDLE, verify Hex complied before any gate/QA:**
+   `hex project export <project_id> -o app.yaml` and confirm a **non-empty
+   `genAppFiles`** list. If it's missing, Hex built a classic notebook+app — do
+   **not** proceed. Send:
+   > `hex thread continue <thread_id> "You built this as a classic notebook app. Rebuild it as a Generative app (App builder → Generative app): move the whole dashboard into the generative app, keeping the SQL cells as data sources. Do not change any queries."`
+   …and re-verify after it goes IDLE.
+
+(The **fallback** Mode C — this coding agent hand-building native EXPLORE/METRIC
+cells → [`building-cells.md`](building-cells.md) — produces *native cells, not a
+Generative app*. It's the lower-fidelity path for when the notebook agent isn't
+available; flag the reduced layout fidelity to the customer.)
 
 ---
 
@@ -123,12 +159,14 @@ Keep it tight — intent, not prose. A dashboard's worth of brief is a page or t
    In Mode A also attach the data connection to the project (a one-line seed SQL
    cell via `hex cell create --data-connection-id …` does this — the agent needs a
    connection to build SQL against). In Mode B the QA'd SQL cells are already there.
-2. **Start the thread with a short prompt** pointing at the brief:
-   > *"Read the `Migration brief` cell — it's the full spec for migrating a Tableau
-   > dashboard into this project. Build it end to end: the SQL derivations it
-   > describes, the input parameters, and the native chart/KPI cells in the given
-   > layout. Build **native Hex cells** (SQL + EXPLORE/METRIC/PIVOT + INPUT), not a
-   > custom code app. Use the warehouse schema and workspace context you can see to
+2. **Start the thread with a short prompt** pointing at the brief. It must **demand
+   a Generative app** up front (the only way to control app type — see above):
+   > *"Build this as a Hex **Generative app** (App builder → Generative app), NOT a
+   > classic notebook+app. Read the `Migration brief` cell — it's the full spec for
+   > migrating a Tableau dashboard into this project. Build it end to end: the SQL
+   > derivations it describes (as SQL cells that stay as the app's data sources),
+   > the input parameters, and the Generative app that reproduces every chart/KPI in
+   > the given layout. Use the warehouse schema and workspace context you can see to
    > implement the SQL well."*
    (Mode B: add *"the SQL cells already exist — use them as the data source, don't
    rewrite them."*)
@@ -136,31 +174,39 @@ Keep it tight — intent, not prose. A dashboard's worth of brief is a page or t
    --json` returns a `url`. Give it to them **as the build starts** so they can
    *watch the agent work in real time and stop/redirect it* if it drifts — the
    build runs several minutes and is otherwise a black box. Don't poll silently.
-4. **Prompt framing decides the output *form*.** A chart-type-prescriptive brief →
-   **native EXPLORE/METRIC cells** (diff-able — what you want). A loose "make an
-   app" prompt → a custom **React app** (`genAppFiles`), not native cells. For a
-   migration, prescribe chart types (the brief already does).
-5. **Poll** `hex thread get <id>` until `Status: IDLE`; iterate with
-   `hex thread continue <id> "<fix>"`.
+4. **Poll** `hex thread get <id>` until `Status: IDLE`; iterate with
+   `hex thread continue <id> "<fix>"`. If status is `ERROR`, the run died partway —
+   `hex thread continue` to finish; partial work usually landed.
+5. **Verify it's a Generative app** (see the section above): export the project and
+   confirm a non-empty `genAppFiles`; if Hex built a classic notebook app, send the
+   rebuild-as-Generative continue-prompt and re-verify. Do this **before** the gate.
 
 ## Verify + gate (always)
 
 The build is not done until it's gated. The notebook agent is capable but still a
 black box that can be confidently wrong — **verify, don't trust.**
 
-- **Confirm cell usage** — `hex project export` and check what it built: SQL cells
-  present + (Mode B) unchanged, charts bound to the right dataframes, params wired.
+- **Confirm the shape** — `hex project export` and check: **`genAppFiles` is
+  non-empty** (it's a Generative app, not a classic notebook), the **SQL cells are
+  present as the data sources** (+ unchanged in Mode B), and the params are wired.
 - **Run the SQL-fidelity gate on its SQL** — read every SQL cell's values with
   `hex cell run <id> --with-output`, diff the agent's SQL against your independent
   re-derivation from the `.twb`, run the mistake-class checklist + differential
   probes. Full procedure → [`sql-review.md`](sql-review.md). The gate reviews
   *whoever* wrote the SQL — post-hoc on the agent's cells is a first-class use.
+- **Trace panels via the React code when needed** — the Generative app's
+  `genAppFiles` (`App.js`, `lib/theme.js`) show which cell/column each panel reads
+  and the exact colors/formats; grep them to locate *which* derivation a wrong
+  panel is pointed at. It's a debugging aid, not the verification.
 - **Fix divergences** — either `hex thread continue <id> "<name the exact
   divergence>"`, or edit the cell directly (YAML / `hex cell update`) when a
   surgical fix is faster than another agent round-trip.
-- **Visual QA is still the human gate** — you can't render the app (it's behind
-  login; never enter credentials). Give the customer the original ↔ migrated
-  side-by-side (`scripts/tableau_shots.py`). See SKILL.md step "Run and QA".
+- **Visual QA** — the original ↔ migrated side-by-side (`scripts/tableau_shots.py`
+  exports the Tableau PNGs). Today this coding agent can't render the Hex app
+  itself (it's behind login; never enter credentials), so it's the human gate. The
+  Generative app + `genAppFiles` is exactly what makes an **automated
+  screenshot-diff parity loop** possible (headless browser with a one-time login) —
+  the planned co-authored merge adds it; until then, hand the pair to the customer.
 
 ## Cheat-sheet
 
