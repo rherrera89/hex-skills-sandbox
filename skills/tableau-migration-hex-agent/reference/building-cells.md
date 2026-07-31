@@ -1,20 +1,21 @@
-# Building Hex cells (Mode C, fallback: coding agent hand-builds)
+# Building Hex cells (fallback: coding agent hand-builds native cells)
 
-This is the **fallback** build (Mode C) — *this coding agent* builds both the SQL
-and the native chart/KPI cells by hand, cloning templates. Use it only when the
-notebook agent isn't an option: the headless-agent-threads feature is off, the
-customer has no Hex credits to spend, or every cell must be deterministic and
-diff-able.
+This is the **fallback** build — *this coding agent* builds both the SQL and the
+native chart/KPI cells by hand, cloning templates, producing a **classic notebook
+dashboard** rather than the default generative app. Use it **only** when the notebook
+agent isn't an option: the headless-agent-threads feature is off or the customer has
+no Hex credits to spend. It is not a stylistic alternative to the generative app —
+it's the path of last resort when delegation is unavailable.
 
 **Know what you're giving up.** This path spends the customer's **frontier-model
 subscription tokens** (not "free" — just a different budget than Hex credits), and
 this agent is **blind to the warehouse schema, the data, and the rendered result** —
 it infers types from the `.twb` + probes and can't see how a chart draws. So the
 SQL-fidelity gate and the human visual-QA gate carry more weight here. **The default
-path** ([`build-notebook-agent.md`](build-notebook-agent.md)) instead hands the
+path** ([`build-generative-app.md`](build-generative-app.md)) instead hands the
 build to **Hex's notebook agent**, which *can* see the schema + workspace context +
-its own render — it's the better-equipped builder. Use this doc only on the
-hand-build fallback.
+its own render — it's the better-equipped builder, and it produces a generative app
+whose render is verified automatically. Use this doc only on the hand-build fallback.
 
 How to turn the Phase-1 SQL cells into native Hex chart/KPI cells by cloning
 templates. (The SQL shape itself — clustering worksheets into shared queries —
