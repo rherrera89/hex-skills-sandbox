@@ -6,7 +6,7 @@ Agent skills for [Hex](https://hex.tech). Each skill lives in `skills/<name>/` a
 
 | Skill | What it does |
 |-------|--------------|
-| [`tableau-migration`](skills/tableau-migration/) | Migrate Tableau dashboards into Hex — fetch `.twb`/`.twbx`, parse the XML, map the data connection, and rebuild each worksheet as Hex SQL + native chart cells. Includes a prioritize→pilot→batch workflow and a clone-and-override native-cell template library. |
+| [`tableau-migration`](skills/tableau-migration/) | Migrate Tableau dashboards into Hex — fetch `.twb`/`.twbx`, parse the XML, map the data connection, then delegate the build to Hex's notebook agent, which produces a **generative app** on a natively-gated SQL layer. Verified by a SQL-fidelity gate + a headless visual-QA loop. Prioritize→pilot→batch workflow; hand-built native cells remain as a fallback. |
 
 ## Install a skill
 

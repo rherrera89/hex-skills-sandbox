@@ -173,13 +173,26 @@ and any table calc embedded inside a larger expression.
 
 ## 5. Parameters, sets, bins
 
-- 🔸 **Parameter → Hex input cell.** Create an input cell mirroring the
-  parameter's domain and default (range→number/slider, list→dropdown,
-  boolean→toggle, date→date input), then reference it in the shared SQL via Jinja
-  `{{ param_name }}`. Find the parameter's **usages** (calcs / filters / CASE
-  swaps) and wire the variable into each. A measure-switcher parameter becomes a
-  `CASE {{ param }} WHEN … END` in the shared SQL that swaps which measure is
-  selected — one control drives every chart on that SQL.
+- 🔸 **Parameter → Hex input cell. First classify its scope + usages.** Sweep the
+  `.twb` for where the parameter is referenced (calcs / filters / CASE swaps). Its
+  scope decides how it's described in the brief and which cells it touches:
+  - **Data-population parameter** (was a data-source/context/quick filter — e.g. an
+    ARR threshold, a segment selector): it moves the **totals/KPIs**, so it belongs
+    in the **shared filter / shared SQL `WHERE`** (via Jinja `{{ param }}`). In the
+    brief, state it under the shared filters and note it applies to **all** cells.
+  - **Chart-scoped / display parameter** (a measure switcher on one viz, a per-viz
+    Top-N): it changes only specific cells. In the brief, attach it to the **named
+    cells** it affects; a measure switcher becomes `CASE {{ param }} WHEN … END` in
+    that cell's SQL, or a cell control the notebook agent wires.
+  - Map the control to the domain either way: range→number/slider, list→dropdown,
+    boolean→toggle, date→date input; carry the default.
+  - **Who builds the input cell:** in the default (notebook-agent) build, describe
+    the parameter — control, default, domain, **scope (all cells vs. which)** — in
+    the migration brief and let the agent create the input cell + wire it. In the
+    hand-build fallback (or when a data-population param's `{{ }}` must resolve for
+    a pre-build oracle check), author the INPUT cell in YAML (`hex cell create`
+    can't mint it). If you wired the Jinja yourself, name the input identically so
+    the control binds to the same variable. See `build-notebook-agent.md`.
   - ⚠️ **Do NOT wrap the Jinja tag in quotes.** Hex substitutes `{{ param }}`
     with a properly-typed value — including quoting strings for you. Writing
     `'{{ param }}'` makes the tag a literal string (`WHERE region = '{{ param }}'`
