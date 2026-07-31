@@ -1,9 +1,11 @@
-# Build via Hex's notebook agent (Phase 2 — the recommended path)
+# Build via Hex's notebook agent — brief + handoff mechanics
 
-The **default way to build the dashboard**: hand the work to Hex's in-product
-notebook agent (`hex thread`), driven by a **migration brief** you write into the
-project. Use this doc once you've parsed the workbook (Phase 1) and the customer
-has chosen a notebook-agent mode at the build-path gate (SKILL.md).
+The **shared mechanics** for the default build: how to write the **migration brief**,
+inject it, hand the work to Hex's in-product notebook agent (`hex thread`), and
+iterate. The default deliverable is a **Generative app** — this doc covers the brief
+and the thread; the app-specific prompt, the `genAppFiles` verification, and the
+styling spec live in [`build-generative-app.md`](build-generative-app.md). Use this
+doc once you've parsed the workbook (Phase 1).
 
 ## Why the notebook agent is the better builder here
 
@@ -29,25 +31,27 @@ it is simply better-equipped than this agent. So the division of labor is:
 This is **not** a "prettier output" tradeoff — it's a "the builder can see what
 it's building" advantage. The cost is Hex credits.
 
-## The two modes
+## Two ways to author the SQL layer
 
-Both are driven by the brief; they differ only in who first authors the SQL.
+The presentation is always a Generative app; these differ only in **who first
+authors the native SQL cells underneath it** (both end gated the same way):
 
-- **Mode A — delegate the whole build (default).** You write the brief; the
-  notebook agent builds the **SQL cells, the parameters, and the charts**. You
-  then run the fidelity gate **post-hoc** on what it built (read its SQL + values,
-  diff against the `.twb`). Simplest, and it leans fully on the agent's schema +
-  context sight. Verified to reproduce correct, gated SQL from a good brief.
-- **Mode B — pre-build the SQL, delegate the viz.** You build + gate the SQL
-  cells first, then the agent builds only the charts/params from the brief + those
-  cells. Choose this when the **data population is subtle** (aggressive shared
-  filters, a fan-out risk, a relative-date window) and you want the numbers pinned
-  and gated *before* any viz work — see [`sql-review.md`](sql-review.md). It costs
-  a YAML round-trip (`hex cell create` can't mint INPUT or dataframe-SQL companion
-  cells — see [`gotchas.md`](gotchas.md)).
+- **Agent-built SQL (default).** You write the brief; the notebook agent builds the
+  **SQL cells, the parameters, and the app**. You then run the fidelity gate
+  **post-hoc** on the SQL it built (read its values, diff against the `.twb`).
+  Simplest, and it leans fully on the agent's schema + context sight. Verified to
+  reproduce correct, gated SQL from a good brief.
+- **Pre-built SQL.** You build + gate the SQL cells first, then the agent builds the
+  app on top of them. Choose this when the **data population is subtle** (aggressive
+  shared filters, a fan-out risk, a relative-date window) and you want the numbers
+  pinned and gated *before* any app work — see [`sql-review.md`](sql-review.md). It
+  costs a YAML round-trip (`hex cell create` can't mint INPUT or dataframe-SQL
+  companion cells — see [`gotchas.md`](gotchas.md)).
 
-When unsure, default to **A** and rely on the post-hoc gate; escalate to **B** for
-high-stakes or subtle-population workbooks.
+When unsure, default to **agent-built** and rely on the post-hoc gate; escalate to
+**pre-built** for high-stakes or subtle-population workbooks. Either way, tell the
+agent to build a Generative app that *reads* the SQL dataframes and never re-queries
+([`build-generative-app.md`](build-generative-app.md)).
 
 ---
 
@@ -120,26 +124,35 @@ Keep it tight — intent, not prose. A dashboard's worth of brief is a page or t
 ## The handoff
 
 1. **Inject the brief** as a markdown cell (`hex cell create -t markdown -l "Migration brief"`).
-   In Mode A also attach the data connection to the project (a one-line seed SQL
-   cell via `hex cell create --data-connection-id …` does this — the agent needs a
-   connection to build SQL against). In Mode B the QA'd SQL cells are already there.
-2. **Start the thread with a short prompt** pointing at the brief:
-   > *"Read the `Migration brief` cell — it's the full spec for migrating a Tableau
-   > dashboard into this project. Build it end to end: the SQL derivations it
-   > describes, the input parameters, and the native chart/KPI cells in the given
-   > layout. Build **native Hex cells** (SQL + EXPLORE/METRIC/PIVOT + INPUT), not a
-   > custom code app. Use the warehouse schema and workspace context you can see to
-   > implement the SQL well."*
-   (Mode B: add *"the SQL cells already exist — use them as the data source, don't
+   ⚠️ **Wrap the brief body in `{% raw %}` … `{% endraw %}`.** Hex markdown cells
+   Jinja-render `{{ }}` tokens, and a brief is full of them — `{{ param }}` intent
+   notation, and often a literal empty `{{ }}` as an example. On `hex project run`
+   the markdown cell tries to render and **ERRORs** on the stray Jinja (an empty
+   `{{ }}` is a hard syntax error), failing the whole run even though every SQL cell
+   is fine. `{% raw %}` tells Jinja to skip the block; the markdown still renders.
+   (Seen live: an un-wrapped brief cell ERRORed the project run; the SQL was all
+   clean.) Same rule for the styling spec cell.
+   Also inject the **styling spec** the same way (also `{% raw %}`-wrapped). When the
+   **agent builds the SQL**, attach the data connection to the project (a one-line
+   seed SQL cell via `hex cell create --data-connection-id …` does this — the agent
+   needs a connection to build SQL against). When you **pre-built the SQL**, the QA'd
+   cells are already there.
+2. **Start the thread with the generative-app prompt.** It **must open** with *"Build
+   this as a GENERATIVE APP (App builder → Generative app), not a classic notebook"*
+   and tell the agent to build the SQL derivations + params, then a Generative app
+   that *reads those dataframes* (never re-queries), matching the styling spec. Full
+   prompt template → [`build-generative-app.md`](build-generative-app.md). (Pre-built
+   SQL: add *"the SQL cells already exist — use them as the data source, don't
    rewrite them."*)
 3. **⚠️ Surface the live URL to the customer immediately.** `hex thread create
    --json` returns a `url`. Give it to them **as the build starts** so they can
    *watch the agent work in real time and stop/redirect it* if it drifts — the
    build runs several minutes and is otherwise a black box. Don't poll silently.
-4. **Prompt framing decides the output *form*.** A chart-type-prescriptive brief →
-   **native EXPLORE/METRIC cells** (diff-able — what you want). A loose "make an
-   app" prompt → a custom **React app** (`genAppFiles`), not native cells. For a
-   migration, prescribe chart types (the brief already does).
+4. **Prompt framing decides the output *form* — there's no CLI flag.** Opening with
+   "Build this as a GENERATIVE APP…" yields a custom app (`genAppFiles`); a loose or
+   chart-type-prescriptive prompt yields classic native cells. Always **verify the
+   form** after the build (`hex project export` → is `genAppFiles` non-empty?) and
+   re-prompt if it built classic. Full detail → [`build-generative-app.md`](build-generative-app.md).
 5. **Poll** `hex thread get <id>` until `Status: IDLE`; iterate with
    `hex thread continue <id> "<fix>"`.
 
@@ -148,19 +161,20 @@ Keep it tight — intent, not prose. A dashboard's worth of brief is a page or t
 The build is not done until it's gated. The notebook agent is capable but still a
 black box that can be confidently wrong — **verify, don't trust.**
 
-- **Confirm cell usage** — `hex project export` and check what it built: SQL cells
-  present + (Mode B) unchanged, charts bound to the right dataframes, params wired.
-- **Run the SQL-fidelity gate on its SQL** — read every SQL cell's values with
-  `hex cell run <id> --with-output`, diff the agent's SQL against your independent
+- **Confirm what it built** — `hex project export`: `genAppFiles` non-empty (it's a
+  Generative app, not classic), SQL cells present + (pre-built) unchanged, the app
+  reads the right dataframes, params wired.
+- **Run the SQL-fidelity gate on the SQL** — read every SQL cell's values with
+  `hex cell run <id> --with-output`, diff the SQL against your independent
   re-derivation from the `.twb`, run the mistake-class checklist + differential
   probes. Full procedure → [`sql-review.md`](sql-review.md). The gate reviews
   *whoever* wrote the SQL — post-hoc on the agent's cells is a first-class use.
 - **Fix divergences** — either `hex thread continue <id> "<name the exact
   divergence>"`, or edit the cell directly (YAML / `hex cell update`) when a
   surgical fix is faster than another agent round-trip.
-- **Visual QA is still the human gate** — you can't render the app (it's behind
-  login; never enter credentials). Give the customer the original ↔ migrated
-  side-by-side (`scripts/tableau_shots.py`). See SKILL.md step "Run and QA".
+- **Verify the render with the visual-QA loop** — headless screenshot → panel-by-panel
+  diff vs. the source PNG → surgical fix batch → repeat, then a final human confirm.
+  → [`visual-qa-loop.md`](visual-qa-loop.md).
 
 ## Cheat-sheet
 
