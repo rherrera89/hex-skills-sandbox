@@ -1,7 +1,11 @@
-# SQL-fidelity review gate (Phase 1.5)
+# SQL-fidelity review gate
 
-A mandatory review pass **between oracle-validation (step 4) and building native
-cells (step 6)**. It exists to catch the **dangerous error class**: SQL that is
+A mandatory review pass (SKILL.md step 6) — **the accuracy guarantee, and it
+reviews the SQL no matter who wrote it.** In the default (notebook-agent) build it
+runs **post-hoc** on the agent's cells: export its SQL, read its values with
+`hex cell run --with-output`, and diff against your independent re-derivation from
+the `.twb`. In the hand-build fallback it runs on your own SQL before charts. Same
+gate either way. It exists to catch the **dangerous error class**: SQL that is
 *syntactically fine* — it runs, the run-status oracle returns COMPLETED — but is
 **semantically wrong**. Missed a context filter, off-by-one date window, `COUNT`
 where the source used `COUNTD`, wrong grain, a join that fanned out the rows,
@@ -108,9 +112,17 @@ error; the linked docs carry the full rule.
 
 ## 4. Differential probes — prove behavior with the oracle
 
-The oracle only returns COMPLETED/ERRORED, so turn each assertion into an
-expression that **raises divide-by-zero (→ ERRORED) exactly when the assertion is
-violated**. General form:
+> **First: you can now read values directly.** `hex cell run <cell_id> --with-output`
+> returns the result rows, so for a magnitude check (does this cluster's total /
+> row count / distinct count match what the source rendered?) just **run it and
+> read the number** — no div-by-zero trick needed. This is the biggest upgrade to
+> the gate: use it for the numeric sanity-checks the review used to be blind to.
+> The divide-by-zero probes below are still valuable when you want the assertion
+> itself to be the pass/fail signal (a hard gate that ERRORs on violation), or to
+> assert over the *warehouse* base before the cell exists.
+
+Turn each assertion into an expression that **raises divide-by-zero (→ ERRORED)
+exactly when the assertion is violated**. General form:
 
 ```sql
 SELECT 1.0 / (CASE WHEN <assertion-holds> THEN 1 ELSE 0 END)
@@ -178,7 +190,9 @@ delivered project holds only real SQL + chart cells.
 - **Deferred (🐍/⚠️)** — recorded in the ledger + migration notes as a known gap
   for the customer; not a blocker.
 
-**In batch mode** this runs inside Phase 2 (sequential, per workbook), right after
-oracle-validation and before native cells — record the gate result in the
-manifest `notes`. The independent-review subagent is safe to spawn per workbook;
-keep the human visual-QA gate in the main thread (Phase 3).
+**In batch mode** this runs per workbook in Phase 2 (sequential) — on the delegated
+build, right after the notebook agent finishes and before you mark the workbook
+verified; on the hand-build, right after oracle-validation and before native cells.
+Record the gate result in the manifest `gate`/`notes`. The independent-review
+subagent is safe to spawn per workbook; keep the human visual-QA gate in the main
+thread (Phase 3).
