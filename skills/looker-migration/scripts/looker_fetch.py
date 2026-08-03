@@ -9,8 +9,8 @@ then lists / fetches the two Looker layers:
 
 Looker will hand you the **generated warehouse SQL** for any query (`sql`
 sub-command) and the **actual result values** (`query` sub-command). Phase 1
-becomes "port Looker's SQL", and the SQL-fidelity gate (Phase 1.5) gets a real
-numeric oracle — not just the blind COMPLETED/ERRORED check. Use them.
+becomes "port Looker's SQL", and the SQL-fidelity gate gets a real numeric oracle
+— not just the blind COMPLETED/ERRORED check. Use them.
 
 Auth: Looker API 4.0 `POST /api/4.0/login` with client_id/client_secret returns a
 short-lived access_token; every other call carries `Authorization: token <token>`.
@@ -42,6 +42,9 @@ Usage:
   python3 scripts/looker_fetch.py sql   query-spec.json        # -> generated SQL (text)
   python3 scripts/looker_fetch.py query query-spec.json        # -> result rows (JSON)
 
+  # render a dashboard to PNG for the visual-QA loop (reference/visual-qa-loop.md)
+  python3 scripts/looker_fetch.py shots <dashboard_id> -o working/shots/looker-<id>.png
+
   # raw passthrough for anything not wrapped above
   python3 scripts/looker_fetch.py raw GET /lookml_models
 
@@ -54,6 +57,7 @@ import configparser
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -390,6 +394,60 @@ def cmd_raw(creds, args):
     print(res)
 
 
+def _get_bytes(creds: dict, path: str) -> bytes:
+    """GET a binary response (a rendered PNG), with a single 401 re-login."""
+    token = login(creds)
+    req = urllib.request.Request(
+        creds["api"] + path, method="GET", headers={"Authorization": f"token {token}"}
+    )
+    try:
+        with urllib.request.urlopen(req, context=_ssl_ctx(creds["verify_ssl"])) as r:
+            return r.read()
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            _TOKEN["value"] = None
+            req.headers["Authorization"] = f"token {login(creds)}"
+            with urllib.request.urlopen(req, context=_ssl_ctx(creds["verify_ssl"])) as r:
+                return r.read()
+        sys.exit(f"GET {path} -> {e.code}: {e.read().decode(errors='replace')[:400]}")
+
+
+def cmd_shots(creds, args):
+    """Render a dashboard to PNG via Looker's render-task API (headless, no browser).
+
+    Source-side capture for the visual-QA loop (reference/visual-qa-loop.md). Creates
+    a render task, polls it to completion, then downloads the PNG.
+    """
+    qs = urllib.parse.urlencode({"width": args.width, "height": args.height})
+    task = call(
+        creds, "POST",
+        f"/render_tasks/dashboards/{urllib.parse.quote(str(args.id))}/png?{qs}",
+        body={"dashboard_style": args.style},
+    )
+    task_id = (task or {}).get("id")
+    if not task_id:
+        sys.exit(f"render task not created: {json.dumps(task)[:400]}")
+
+    # Render can take a while for big dashboards — poll until success/failure.
+    t, status, waited = None, None, 0
+    while waited < args.timeout:
+        t = call(creds, "GET", f"/render_tasks/{urllib.parse.quote(task_id)}")
+        status = (t or {}).get("status")
+        if status in ("success", "failure"):
+            break
+        time.sleep(2)
+        waited += 2
+    if status != "success":
+        sys.exit(f"render task {task_id} ended status={status} "
+                 f"(detail: {(t or {}).get('status_detail')})")
+
+    png = _get_bytes(creds, f"/render_tasks/{urllib.parse.quote(task_id)}/results")
+    out = Path(args.out) if args.out else (EXPORT_DIR / "shots" / f"{args.id}.png")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(png)
+    print(f"OK  rendered dashboard {args.id} -> {out} ({len(png)//1024} KB)")
+
+
 def main():
     ap = argparse.ArgumentParser(description="Fetch Looker content over the REST API 4.0")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -408,6 +466,14 @@ def main():
     p = sub.add_parser("sql"); p.add_argument("spec", help="query-spec JSON (or a contract element)")
     p = sub.add_parser("query"); p.add_argument("spec", help="query-spec JSON (or a contract element)")
 
+    p = sub.add_parser("shots", help="render a dashboard to PNG (visual-QA source capture)")
+    p.add_argument("id")
+    p.add_argument("--out")
+    p.add_argument("--width", type=int, default=1400)
+    p.add_argument("--height", type=int, default=2000)
+    p.add_argument("--style", default="tiled", help="dashboard_style: tiled | single_column")
+    p.add_argument("--timeout", type=int, default=120, help="seconds to wait for the render")
+
     p = sub.add_parser("raw")
     p.add_argument("method"); p.add_argument("path"); p.add_argument("body", nargs="?")
 
@@ -424,6 +490,7 @@ def main():
         "look": cmd_look,
         "sql": cmd_sql,
         "query": cmd_query,
+        "shots": cmd_shots,
         "raw": cmd_raw,
     }[args.cmd](creds, args)
 

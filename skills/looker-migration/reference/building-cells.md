@@ -1,18 +1,18 @@
-# Building Hex cells (Phase 2, Option A: coding agent hand-builds)
+# Building Hex cells (fallback build: coding agent hand-builds native cells)
 
-This is **Option A** of the Phase-2 build — *this coding agent* turns the Phase-1
-SQL cells into native Hex chart/KPI cells by cloning templates. It spends the
-customer's frontier-model subscription tokens and **no Hex credits**, and every
-cell is deterministic and diff-able — but you're blind to the rendered result, so
-the human visual-QA gate matters. **Option B** hands the same QA'd SQL cells to
-**Hex's notebook agent** (`hex thread create`), which designs charts + layout in
-house style (usually better-looking) at the cost of Hex credits — see SKILL.md
-step 6 for the choice and the prompt shape. Use this doc when you're on Option A.
+⚠️ **This is the FALLBACK path, not the default.** Use it **only** when the notebook
+agent is unavailable — the headless-agent-threads feature is off, or there are no
+Hex credits. The default build is a **Generative app** built by the notebook agent
+→ [`build-generative-app.md`](build-generative-app.md). Here *this coding agent*
+turns the gated SQL cells into native Hex chart/KPI cells by cloning templates: it
+spends the customer's frontier-model tokens and **no Hex credits**, every cell is
+deterministic and diff-able — but you're **blind to the rendered result**, so a
+human visual-QA gate replaces the automated visual-QA loop
+([`visual-qa-loop.md`](visual-qa-loop.md), which only works on a rendered app).
 
-How to turn the Phase-1 SQL cells into native cells, and how each **Looker tile
-type** maps to a Hex cell. (The SQL shape itself — clustering tiles into shared
-queries — is a Phase-1 concern; see §9 of
-[`lookml-semantics.md`](lookml-semantics.md).)
+How to turn the gated SQL cells into native cells, and how each **Looker tile type**
+maps to a Hex cell. (The SQL shape itself — clustering tiles into shared queries —
+is covered in §9 of [`lookml-semantics.md`](lookml-semantics.md).)
 
 What's Looker-specific here is the **tile-type → cell-kind map** and the
 **`value_format` → `displayFormat`** carry-through, both below. The templates and
@@ -61,6 +61,12 @@ text tiles.
   column **but stay in the query** — a field hidden from the viz is still in
   Looker's result and still sets the grain, so dropping it would silently change
   the numbers. Never *drop* a hidden dimension; hide it.
+- ⚠️ **A hidden *table calc* still has to be computed.** `hidden_fields` can name a
+  `dynamic_fields` table calculation (e.g. `calculation_1`), not just a column —
+  hidden from the viz but often a dependency of a *visible* calc or sort. Translate
+  it into the SQL (§7.5 of [`lookml-semantics.md`](lookml-semantics.md)) even though
+  it isn't shown; only its display is hidden. (Seen live: `business_pulse`'s "Total
+  Sales YoY" hides `calculation_1`.)
 
 ---
 

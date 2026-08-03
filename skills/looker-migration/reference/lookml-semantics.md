@@ -1,8 +1,11 @@
-# LookML semantics → Hex (Phase 1: code conversion)
+# LookML semantics → Hex (understand the source)
 
-The reference for **Phase 1** — translating a Looker dashboard's LookML into
-warehouse SQL (or Python for the genuine gaps). Phase 2 (SQL → native Hex
-chart/KPI cells) lives in [`building-cells.md`](building-cells.md).
+The reference for **understanding the Looker source** — translating a dashboard's
+LookML into warehouse SQL (or Python for the genuine gaps), which you distill into
+the migration brief. The **build** (SQL → a generative app by default, or native
+cells in the fallback) lives in
+[`build-generative-app.md`](build-generative-app.md) /
+[`building-cells.md`](building-cells.md).
 
 The value here is the **Looker side**: what each LookML construct *means* and the
 handful of behaviors that are easy to get subtly wrong. The SQL side is whatever
@@ -110,6 +113,18 @@ A `measure` is an aggregation. `type:` maps directly:
 
 **`type: count` on a joined view** counts *that view's* rows through the join — if the join fanned out, a base-table `COUNT(*)` is wrong. Prefer `COUNT(DISTINCT <that view's PK>)`. (See §5 fan-out.)
 
+> **Worked example — one KPI composes several constructs.** Real measures stack the
+> rules above; that composition is where a migration goes wrong, not any single step.
+> `order_items.30_day_repeat_purchase_rate` (from the `thelookevent` fixture) is a
+> *ratio* of a *filtered count_distinct* over a plain count, where the filter is a
+> *yesno* dimension defined by a *cross-row `TIMESTAMP_DIFF`* into a *derived-table*
+> field:
+> - `30_day_repeat_purchase_rate` = `count_with_repeat_purchase_within_30d / count` → a **§9 ratio** (`SAFE_DIVIDE` / `NULLIF`-guarded).
+> - `count_with_repeat_purchase_within_30d` = `count_distinct(${id})` **filtered** on `repeat_purchase_within_30d` → a **filtered `COUNT(DISTINCT id)`** (this §2).
+> - `repeat_purchase_within_30d` (yesno) = `${days_until_next_order} <= 30`; `days_until_next_order` = `TIMESTAMP_DIFF(${created_raw}, ${repeat_purchase_facts.next_order_raw}, DAY)` → resolve `${repeat_purchase_facts.*}` through the **PDT rebuilt as a CTE** (§4).
+>
+> Net: `SAFE_DIVIDE(COUNT(DISTINCT CASE WHEN days_until_next_order <= 30 THEN id END), NULLIF(COUNT(*),0))`, over a base that CTE-joins the rebuilt `repeat_purchase_facts`. Full SQL: [`looker-zoo/thelookevent/expected/business_pulse.order_items.sql`](../looker-zoo/thelookevent/expected/business_pulse.order_items.sql).
+
 ## 3. `dimension_group` → one column per timeframe
 
 A time `dimension_group` expands into multiple fields — `created_date`, `created_week`, `created_month`, `created_year`, … — one per entry in `timeframes:`. In a tile's `fields`, `orders.created_month` means the **month-truncated** form.
@@ -128,8 +143,9 @@ dimension_group: created {
 | `_week` | `DATE_TRUNC('week', created_at)` — 🔸 anchor to Looker's `week_start_day` (default **Monday**), and confirm the warehouse agrees |
 | `_month` / `_quarter` / `_year` | `DATE_TRUNC('month'/'quarter'/'year', created_at)` |
 | `_time` | the raw timestamp |
-| `_day_of_week`, `_month_name`, `_hour_of_day`, … | the matching date-part function |
+| `_day_of_week`, `_month_name`, `_hour_of_day`, … | the matching date-part function (a **string/number label**, not a date) |
 
+- 🔸 **Named/ordinal parts sort by the wrong key.** `_month_name` (`FORMAT_TIMESTAMP('%B', …)`), `_day_of_week`, `_hour_of_day` return **labels** — an `ORDER BY` on the string gives April, August, December… Looker chrono-sorts these internally; in SQL you must **carry the companion ordinal** (`_month_num` / a weekday index) and `ORDER BY` that, not the name. (Seen live: `business_pulse` plots `created_month_name` on the x-axis.)
 - 🔸 **Keep it a real DATE/TIMESTAMP** end-to-end so Hex's date axis + granularity controls work — carry the grain as the chart's `truncUnit`, don't bind a numeric proxy. See [`building-cells.md`](building-cells.md) + [`gotchas.md`](gotchas.md).
 - 🔸 **Fiscal / `fiscal_month_num` etc.** honor the model's `fiscal_month_offset` — don't map to a plain calendar month.
 - **`type: duration`** dimension_group (`intervals:`) → `DATEDIFF(<unit>, sql_start, sql_end)`; emit the start/end columns it needs.
@@ -158,6 +174,8 @@ explore: orders {
 | `type: inner` / `full_outer` / `cross` | the matching JOIN |
 | `relationship: many_to_one` (default) | fact→dim, safe (one dim row per fact row) |
 | `relationship: one_to_many` / `many_to_many` | ⚠️ **fans out** — a `SUM`/`COUNT` over the base view inflates. Aggregate the many-side first (a pre-agg CTE), or use `COUNT(DISTINCT pk)` / `SUM(DISTINCT …)`. Prove no fan-out with a probe (sql-review §4). |
+
+⚠️ **Outer-join *direction* is a population concern, not just `relationship:`.** A `type: full_outer` (or `right_outer`) join adds **unmatched rows from the other side** to the base — even at `one_to_one` (no fan-out), a `COUNT(*)`/`SUM` over the base can pick up phantom rows the dashboard never intended. Match the LookML's join type, but when a tile only wants base rows, confirm whether the outer side should really contribute unmatched rows (often it shouldn't → `LEFT JOIN`). (Seen live: `order_items` joins `inventory_items` `full_outer one_to_one`.)
 
 Preserve the join **grain**: build the cluster SQL at the finest grain any tile needs. Looker's generated SQL (`looker_fetch.py sql`) shows exactly which joins fire for a given field set — a field that's never referenced won't join, so don't add joins a cluster doesn't use.
 
@@ -192,9 +210,33 @@ Looker templating (`{% parameter %}`, `{% condition %}`, `{{ _filters[…] }}`, 
 - **Liquid `{% if _user_attributes[…] %}`** → user-attribute-dependent — same RLS caveat as §6.
 - **`{% date_start %}` / `{% date_end %}`** (a date-range filter) → a Hex date-range input, two Jinja bounds in the `WHERE`.
 
+### 7.4. Looker relative-date filter grammar → an explicit window (get the boundary right)
+
+Dashboard filters and tile `filters:` carry Looker's **relative-date expressions** as
+plain strings (`created_date: 90 days`, `created_year: 4 years`, `created_date:
+before 0 months ago`). These are **not** obvious and translate to a concrete
+`WHERE` bound — compute the boundary, don't eyeball it. Common forms (assume the
+tile's `dimension_group` field; examples in BigQuery):
+
+| Looker filter string | Means | SQL bound (illustrative) |
+|---|---|---|
+| `N days` / `N months` / `N years` | the **last N** periods, **including** the current partial one | `col >= DATE_SUB(CURRENT_DATE(), INTERVAL N-1 <unit>)` (period-aligned; confirm inclusivity) |
+| `N days ago for N days` | a fixed window N ago | explicit `BETWEEN` |
+| `before 0 months ago` | up to the **start of the current month** (excludes the current partial month) | `col < DATE_TRUNC(CURRENT_DATE(), MONTH)` |
+| `after YYYY-MM-DD` / `before YYYY-MM-DD` | absolute bound | `col > / < DATE 'YYYY-MM-DD'` |
+| `this month` / `last month` / `YTD` | calendar-aligned window | `DATE_TRUNC`-based range |
+
+- 🔸 **Off-by-one is the trap.** "`N years`" usually **includes** the current partial
+  year, and `before 0 <unit> ago` **excludes** the current partial period — a naive
+  translation shifts totals silently. Parity-check the boundary against
+  `looker_fetch.py query`.
+- The exact semantics depend on the Looker filter type; when unsure, read Looker's
+  filter-expression reference or diff against the generated SQL (`looker_fetch.py sql`),
+  which resolves the relative window to concrete dates.
+
 ## 7.5. Table calculations (dashboard `dynamic_fields`) → SQL `OVER()`
 
-A tile's **table calculations** are client-side, computed by Looker after the query — they arrive in the contract's `dynamic_fields` (a JSON string the fetch script parses). Hex's native EXPLORE/METRIC cells **do not** do window math, so these **must** be computed in the SQL cell. Never defer them to Phase 2.
+A tile's **table calculations** are client-side, computed by Looker after the query — they arrive in the contract's `dynamic_fields` (a JSON string the fetch script parses). Hex's native EXPLORE/METRIC cells **do not** do window math, so these **must** be computed in the SQL cell. Never defer them to the chart/app layer.
 
 Looker-expression table calcs map to SQL windows (translate the referenced `${view.field}` to its aggregate first):
 
@@ -207,6 +249,14 @@ Looker-expression table calcs map to SQL windows (translate the referenced `${vi
 | `percent_of_previous(${x})` | `<x> / LAG(<x>,1) OVER (…)` |
 | `${x} / sum(${x})` (percent of total) | `<x> / SUM(<x>) OVER (PARTITION BY <part>)` |
 | `pivot_row` / `pivot_column` helpers | resolve the pivot in SQL (see §pivots below) |
+| a **constant** (`expression: '10000'`, a goal) | a literal column `10000 AS goal` — **not** a window |
+| a **scalar function** (`now()`, `today()`) | `CURRENT_TIMESTAMP()` / `CURRENT_DATE()` — **not** a window |
+
+⚠️ **Not every `dynamic_fields` entry is a window function.** Goals/thresholds
+(`expression: '10000'`), `now()`, and simple arithmetic on other calcs are literals /
+scalars — translate them as themselves, don't invent a pointless `OVER()`. (Seen
+live: `business_pulse` carries a `goal` constant and a `now()` calc.) Only the
+row-order-dependent expressions above become windows.
 
 **Addressing** = the fiddly part: the `ORDER BY`/`PARTITION BY` comes from the tile's dimensions and pivots (Looker computes across the table's row order, partitioned by pivot columns). Flag anything exotic — `running_total` with a reset, multi-pivot windows, `median`/`percentile` table calcs, `${x}` refs across pivots — for review. Looker's `looker_fetch.py sql` does **not** include client-side table calcs (they run after the SQL), so these you translate from the expression, then parity-check the final numbers via `looker_fetch.py query` (which *does* include them).
 
@@ -224,7 +274,7 @@ Hex has no native map cell, and some Looker constructs have no clean SQL equival
 
 Once each construct is translated, decide the **SQL cell shape**. Don't emit one SQL per tile — that's the anti-pattern (duplicated logic, bloat, drift).
 
-**Mental model:** a Looker dashboard's tiles almost all sit on **one explore**; each tile is a different viz + fields + tile filter over the same explore. Hex mirrors it: **one SQL cell = the "explore"**, and many native cells read that same dataframe. Hex's EXPLORE cells **aggregate and filter over their input dataframe** (Phase 2), so you don't need a pre-aggregated SQL per tile.
+**Mental model:** a Looker dashboard's tiles almost all sit on **one explore**; each tile is a different viz + fields + tile filter over the same explore. Hex mirrors it: **one SQL cell = the "explore"**, and many native cells read that same dataframe. Hex's EXPLORE cells **aggregate and filter over their input dataframe** (the presentation layer), so you don't need a pre-aggregated SQL per tile.
 
 **Cluster tiles into shared queries (do this in planning).** Group tiles that share ALL of:
 - the same **base view + join graph**,
