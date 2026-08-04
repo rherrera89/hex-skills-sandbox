@@ -1,7 +1,11 @@
-# SQL-fidelity review gate (Phase 1.5)
+# SQL-fidelity review gate
 
-A mandatory review pass **between oracle-validation (step 4) and building native
-cells (step 6)**. It catches the **dangerous error class**: SQL that is
+A mandatory review pass (SKILL.md step 6) — **the accuracy guarantee, and it
+reviews the SQL no matter who wrote it.** In the default (notebook-agent) build it
+runs **post-hoc** on the agent's cells: export its SQL, read its values with
+`hex cell run --with-output`, and diff against your independent re-derivation from
+the LookML + contract. In the hand-build fallback it runs on your own SQL before
+charts. Same gate either way. It catches the **dangerous error class**: SQL that is
 *syntactically fine* — it runs, the run-status oracle returns COMPLETED — but is
 **semantically wrong**. Missed an explore-level filter, wrong week anchor,
 `count` where the measure was `count_distinct`, wrong grain, a `one_to_many` join
@@ -17,9 +21,9 @@ The fix is four things together — **structured + independent + targeted + meas
    from the LookML + contract and **diffs** it against what was written.
 3. **Targeted** — a checklist of the known mistake classes, and **differential
    probes** that *prove* a filter/join behaves.
-4. **Measured** — Looker will tell you the **actual numbers**
-   (`looker_fetch.py query`). Diff Hex's real output against Looker's real output
-   per cluster — a direct *value* check, the strongest signal you have.
+4. **Measured** — you can read **both** sides' actual numbers: Looker's via
+   `looker_fetch.py query`, Hex's via `hex cell run --with-output`. Diff them per
+   cluster — a direct *value* check, the strongest signal you have.
 
 Run this per SQL cluster (per shared SQL cell), not per tile — the cluster is the
 unit that carries the filters, joins, and grain.
@@ -72,8 +76,9 @@ what it should be — does it match?"**
 
 Either way the output is a **divergence list**: for each mismatch, the tile, what
 the LookML implies, what the SQL does, and which checklist class (§3) it falls
-under. No divergences → continue to §3–§4. Any divergence → fix the SQL and re-run
-step 4's oracle before proceeding.
+under. No divergences → continue to §3–§4. Any divergence → fix the SQL (agent-built:
+`hex thread continue` naming it, or edit the cell; pre-built/fallback: edit the SQL)
+and re-run the run-status oracle before proceeding.
 
 ## 3. Targeted checklist — the known mistake classes
 
@@ -95,6 +100,16 @@ Run every cluster against this. Each line is a real class of oracle-invisible er
 - ☐ **Week anchoring.** Looker's `week` timeframe honors `week_start_day`
   (default Monday); the warehouse's `DATE_TRUNC('week')` may differ. → §3 of
   [`lookml-semantics.md`](lookml-semantics.md).
+- ☐ **Relative-date boundary.** Looker relative-date filters (`N days`, `4 years`,
+  `before 0 months ago`) have non-obvious edges — "N years" includes the current
+  partial year; `before 0 <unit> ago` excludes the current partial period. Verify the
+  boundary, don't eyeball it. → §7.4 of [`lookml-semantics.md`](lookml-semantics.md).
+- ☐ **Named-part sort key.** A `_month_name` / `_day_of_week` axis sorts by the
+  *label* unless you carry the ordinal (`_month_num`) and `ORDER BY` that. → §3 of
+  [`lookml-semantics.md`](lookml-semantics.md).
+- ☐ **Outer-join population.** A `full_outer`/`right_outer` join adds unmatched rows
+  to the base even at `one_to_one` — confirm the base row set is what the tile
+  intended. → §5 of [`lookml-semantics.md`](lookml-semantics.md).
 - ☐ **Field by definition, not label.** Each `view.field` resolved via its LookML
   `sql:`, not the humanized name; same-caption-on-two-joined-views picks the
   *right* view via the qualified id. → [`gotchas.md`](gotchas.md).
@@ -116,35 +131,55 @@ Run every cluster against this. Each line is a real class of oracle-invisible er
 
 ### 4a. Numeric parity against Looker (the strong signal)
 
-For each cluster, pull Looker's **actual values** and compare to Hex's output:
+Both sides are directly readable, so this is a real value diff — not a proxy. For
+each cluster, pull Looker's **actual values** and Hex's **actual output**:
 
 ```bash
 python3 scripts/looker_fetch.py query <cluster-representative-query>.json   # Looker's numbers
+hex cell run <hex_cluster_cell_id> --with-output --json                     # Hex's numbers
 ```
 
-Compare against the Hex cluster's output at the same grain (e.g. metric-by-dimension).
-Because Looker gives you real rows, you can check **magnitude**, not just "it ran":
-totals tie, per-dimension breakdowns tie, the ranked order matches. A mismatch
-localizes the bug to a checklist class above (wrong filter → wrong total; fan-out
-→ inflated total; wrong week anchor → shifted buckets).
+`hex cell run --with-output` returns the cell's **result rows** (not just
+COMPLETED/ERRORED), so you read Hex's real aggregates and compare them to Looker's
+at the same grain (e.g. metric-by-dimension). The rows land at
+`.cell_output.result.rows` (an array of `{COLUMN: value}` objects; **values come
+back as strings** — cast before a numeric compare), with `.result.columns` giving
+name+type. Because both sides give you real rows you check **magnitude**, not just
+"it ran": totals tie, per-dimension breakdowns tie, the ranked order matches. A
+mismatch localizes the bug to a checklist class above (wrong filter → wrong total;
+fan-out → inflated total; wrong week anchor → shifted buckets).
+
+- ⚠️ **The output is capped at `rowLimit` (default 50 rows).** The envelope carries
+  `truncated` + `totalRows` — check them. A per-dimension breakdown with >50 groups
+  comes back **truncated**, so a naive row-by-row diff falsely "mismatches." Either
+  compare an aggregate (the total, or the top-N you can see), raise the cell's row
+  limit, or fold the check into a §4b assertion probe.
+
+> **This dual oracle is the biggest fidelity win in the migration.** You have
+> Looker's own rendered numbers *and* a direct read of Hex's output — a real
+> value-vs-value diff, not the blind COMPLETED/ERRORED check the rest of a headless
+> build is stuck with. Lean on it hard. (After a YAML import, use the API cell id
+> from `hex cell list`, not the export `cellId` — see [`gotchas.md`](gotchas.md).)
 
 - ⚠️ **Grain must match on both sides** — compare Looker's aggregated result to
-  the *same* aggregation over the Hex dataframe, not raw rows.
+  the *same* aggregation over the Hex dataframe. If the cluster cell emits
+  row-level detail, read its companion KPI/grouped cell (or add a scratch
+  aggregate) so you diff like-for-like, not raw rows against a Looker rollup.
 - ⚠️ **PDT snapshot drift.** If the explore is on a persisted derived table, a
   small gap between a live Hex query and Looker's materialized snapshot is
   expected, not a bug (connection-mapping §6) — reconcile against the base tables
   or accept documented drift.
-- Reading the Hex value: the CLI can't read cell output directly, so land the
-  cluster's key aggregates in a tiny result you *can* compare — e.g. write the
-  Hex aggregate to a scratch cell and read it via a probe, or export. When you
-  genuinely can't read the Hex number over the CLI, fall back to the oracle
-  probes (§4b) + the human visual-QA gate for magnitude.
+- If a result is genuinely too large to eyeball, fold the check into a §4b
+  assertion probe (assert the Hex total equals Looker's number → ERRORED on
+  mismatch) so the pass/fail is the oracle's, not yours.
 
 ### 4b. Differential oracle probes
 
-The run oracle only returns COMPLETED/ERRORED, so turn each assertion into an
-expression that **raises divide-by-zero (→ ERRORED) exactly when the assertion is
-violated**:
+Reading values (§4a) covers *magnitude*. Probes are for when you want the
+**assertion itself to be the pass/fail signal** — a hard gate that ERRORs on
+violation — or to assert over the **warehouse base** before the cluster cell even
+exists. Turn each assertion into an expression that **raises divide-by-zero (→
+ERRORED) exactly when the assertion is violated**:
 
 ```sql
 SELECT 1.0 / (CASE WHEN <assertion-holds> THEN 1 ELSE 0 END)
@@ -191,24 +226,28 @@ project holds only real SQL + chart cells.
 > Numeric parity (§4a) proves *magnitude* against Looker's own answer — the single
 > biggest fidelity signal this migration has. Probes (§4b) prove *behavior* (a
 > filter fired, a join held, rows exist). Neither proves the rendered chart looks
-> right — that remains the human **visual-QA** gate (step 7). The review gate
-> shrinks how often visual QA finds a defect; it doesn't replace it.
+> right — that remains the **visual-QA** gate (step 7). The review gate shrinks how
+> often visual QA finds a defect; it doesn't replace it.
 
 ---
 
 ## Gate outcome
 
 - **Pass** — ledger complete, independent re-derivation shows no divergence,
-  checklist clean, **numbers tie to Looker** (§4a), probes COMPLETED. Proceed to
-  build native cells (step 6).
-- **Fail** — any divergence, a parity mismatch, or a probe ERRORED. Fix the SQL,
-  re-run the **step 4 oracle**, then re-run this gate for the affected cluster.
-  Don't build charts on unreviewed SQL.
+  checklist clean, **numbers tie to Looker** (§4a), probes COMPLETED. The SQL is
+  gated — proceed to the visual-QA loop (step 7) on the generative app (or, if you
+  pre-built the SQL, hand it to the app build in step 5).
+- **Fail** — any divergence, a parity mismatch, or a probe ERRORED. Fix the SQL
+  (agent-built: `hex thread continue` naming the divergence, or edit the cell;
+  pre-built/fallback: edit the SQL), re-run the **run-status oracle**, then re-run
+  this gate for the affected cluster. Don't ship an app on unreviewed SQL.
 - **Deferred (🐍/⚠️)** — recorded in the ledger + migration notes as a known gap
   for the customer; not a blocker.
 
-**In batch mode** this runs inside Phase 2 (sequential, per dashboard), right after
-oracle-validation and before native cells — record the gate result (including the
-parity outcome, e.g. "3/3 clusters tie to Looker") in the manifest `notes`. The
-independent-review subagent is safe to spawn per dashboard; keep the human
-visual-QA gate in the main thread (Phase 3).
+**In batch mode** this runs per dashboard in Phase 2 (sequential) — **post-hoc** on
+the agent's cells, right after the build and before you mark the dashboard verified;
+on a pre-built/fallback SQL layer, right after oracle-validation. Record the gate
+result (including the parity outcome, e.g. "3/3 clusters tie to Looker") in the
+manifest `gate`/`notes`. The independent-review subagent is safe to spawn per
+dashboard; keep the visual-QA loop's final human confirm in the main thread
+(Phase 3).
