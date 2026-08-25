@@ -1,111 +1,103 @@
 # Optional: construct a governed Hex semantic model from LookML
 
 The **default** semantic-layer deliverable is a Hex **guide** (headless, no
-prerequisites — see [`datasource-guide.md`](datasource-guide.md)). This doc is the
+prerequisites — see [`datasource-guide.md`](datasource-guide.md)). This is the
 **optional, higher-fidelity** path: rebuild the LookML as a governed Hex
-**semantic model** (`type: model` / `type: view`) — an enforced metrics layer the
-notebook agent and Threads query directly. Many ex-Looker teams will want this,
-because LookML *is* a semantic model and the mapping is nearly 1:1.
+**semantic model** (`type: model` / `type: view`) the notebook agent and Threads
+query directly. LookML *is* a semantic model, so the mapping is nearly 1:1.
 
-> ⚠️ **One manual UI step, and it's not optional.** `hex context` (the CLI publish
-> path) only **populates an existing** semantic project — it cannot create one, and
-> there is no `hex` command that does. So the customer must first **create an empty
-> semantic project in the Hex UI** and give you its **project id** (a UUID). A
-> nonexistent id → `Forbidden`. Everything after that is CLI. If the customer
-> doesn't want that step, stop here and ship the guide instead.
+> ⚠️ **Prerequisite (not headless):** `hex context` only *populates* an **existing**
+> semantic project — no `hex` command creates one. The customer must create an empty
+> project in the UI first and give you its **UUID** (see [publish flow](#publish-flow-hex-context)).
+> Not willing? Stop here and ship the guide.
 
 ## The mapping: LookML → Hex semantic YAML
 
-Hex semantic YAML is multi-document (`---`-separated); each document is one
-resource identified by `type`. Two types: **`model`** (a table's dimensions +
-measures + relations — the LookML *view* analog) and **`view`** (an optional
-curated facade selecting a subset — the LookML *explore* analog). Worked example:
-[`templates/semantic-model.example.yaml`](../templates/semantic-model.example.yaml).
+Multi-document YAML (`---`-separated); each document is one resource keyed by
+`type`: **`model`** (dimensions + measures + relations — the LookML *view* analog)
+or **`view`** (an optional curated facade — the LookML *explore* analog). Worked
+example: [`templates/semantic-model.example.yaml`](../templates/semantic-model.example.yaml).
+Full field list, enums, and validation rules: the Hex
+[**modeling specification**](https://learn.hex.tech/docs/connect-to-data/semantic-models/semantic-authoring/modeling-specification)
+— the table below is just the migration shortcut.
 
 | LookML | Hex semantic YAML | Notes |
 |---|---|---|
 | `view: x { sql_table_name: DB.SCH.T }` | `type: model`, `base_sql_table: DB.SCH.T` | derived-table view → `base_sql_query: "<SQL>"` instead |
-| `dimension: d { sql: ${TABLE}.col ;; type: string }` | a `dimensions[]` entry `{id: d, type: string}` | types: `string` / `number` / `date` / `boolean` |
-| `primary_key: yes` | `unique: true` on that dimension | **every model needs exactly one** `unique: true` dim |
-| `hidden: yes` | `visibility: internal` | keeps it usable but out of the picker |
-| a `dimension_group: time` (many timeframes) | **one** `type: date` dimension | Hex truncates at query time — don't emit one dim per timeframe; collapse to the base date column (keep the `_month`/`_quarter` *legacy numeric* copies only as `visibility: internal` and warn against them) |
-| `measure { type: sum, sql: ${x} }` | `{id, func: sum, of: x}` | also `count` (→ `func: count`, no `of`), `count_distinct`, `average`, `min`, `max`, `median` |
-| filtered measure (`filters:` on a measure) | `{type: number, func_sql: "SUM(CASE WHEN … THEN ${x} END)"}` | express the filter inline in `func_sql` |
-| `measure { type: number, sql: ${a}/${b} }` (ratio of measures) | `{type: number, func_sql: "${a} / NULLIF(${b}, 0)"}` | **ratio of measures**, never `AVG(a/b)`; guard the divide |
-| `${field}` / `${other_view.field}` refs | same `${dimension}` / `${other_model.measure}` refs | cross-model refs resolve through a `relation` |
-| `explore.join { sql_on: A=B ;; relationship: many_to_one }` | a `relations[]` entry `{id: <target model>, type: many_to_one, join_sql: "${A} = ${target.B}"}` | `type`: `many_to_one` / `one_to_many` / `one_to_one` / `many_to_many` |
-| `explore: e { ... joins ... }` | a `type: view` `{base: <base model>, contents: [...]}` | curated entry point; see below |
-| `value_format_name` / `value_format` | (carried on the **chart cell**, not the model) | number formatting lives in the workbook/cell layer — see [`building-cells.md`](building-cells.md) |
-| `access_filter` / user-attribute Liquid | **not** a model construct | RLS → Hex Jinja RBAC in the notebook, flagged; see [`lookml-semantics.md`](lookml-semantics.md) §6 |
+| `dimension: d { sql: ${TABLE}.col ;; type: string }` | `dimensions[]` entry `{id: d, type: string}`; add `expr_sql: col` when id ≠ column | types: `string` / `number` / `date` / `timestamp_tz` / `timestamp_naive` / `boolean` / `other` |
+| `primary_key: yes` | `unique: true` on that dimension | **≥1 required per model** |
+| `hidden: yes` | `visibility: internal` | `visibility` ∈ `public` (default) / `internal` / `private` |
+| `dimension_group: time` (many timeframes) | **one** date/timestamp dimension | Hex truncates at query time — don't emit one dim per timeframe; keep `_month`/`_quarter` legacy copies as `visibility: internal` and warn against them |
+| `measure { type: sum, sql: ${x} }` | `{id, func: sum, of: x}` | `func` ∈ `count` (no `of`), `count_distinct`, `sum`, `avg` (**not** `average`), `median`, `min`, `max`, `stddev`/`stddev_pop`, `variance`/`variance_pop` |
+| filtered measure (`filters:` on a measure) | native `{func: sum, of: x, filters: [is_won, ...]}` — or `func_sql: "SUM(CASE WHEN … END)"` | `filters` takes boolean dimensions and maps ~1:1; `func_sql` for anything more complex |
+| ratio of measures (`type: number, sql: ${a}/${b}`) | `{type: number, func_sql: "${a} / NULLIF(${b}, 0)"}` | ratio of **measures**, never `AVG(a/b)`; guard the divide |
+| `${field}` / `${other_view.field}` refs | `${dimension}` / `${other_model.measure}` | cross-model refs resolve through a `relation` |
+| `explore.join { sql_on: A=B ;; relationship: many_to_one }` | `relations[]` entry `{id: <target model>, type: many_to_one, join_sql: "${A} = ${<relation>.B}"}` | `type` ∈ `many_to_one` / `one_to_many` / `one_to_one` **only — no `many_to_many`** (decompose via a bridge model or pre-aggregate; see [`lookml-semantics.md`](lookml-semantics.md)). `id` defaults to target model id; set `target` if they differ |
+| `explore: e { ... joins ... }` | `type: view` `{base: <base model>, contents: [...]}` | curated entry point; see below |
+| `value_format_name` / `value_format` | **not** a model construct | number formatting rides on the chart cell — see [`building-cells.md`](building-cells.md) |
+| `access_filter` / user-attribute Liquid | **not** a model construct | RLS → Hex Jinja RBAC in the notebook — see [`lookml-semantics.md`](lookml-semantics.md) §6 |
 
-**The `view` (Explore analog).** A `type: view` has a `base:` model and `contents:`
-groups. A base-model group lists dimensions/measures by id; a related-model group
-uses `- relation: <relation id>` and lists that model's fields. Views are optional
-— models alone carry all analytical capability; a view just gives a friendlier
-curated surface. Map one Hex view per LookML explore.
+**The `view`.** `base:` model + `contents:` groups. A base-model group lists
+dimensions/measures by id; a related-model group uses `- relation: <id>` (dot-path
+for multi-hop, e.g. `orders.customers`). Shortcuts: `...` = all fields, `~field_id`
+excludes one, `{dimension: id, name: "…"}` renames. Views are optional — models
+carry all analytical capability. Map one view per LookML explore.
 
-**Fidelity notes:**
-- Preserve the LookML `description`s — they carry the "which field to prefer" and
-  "don't truncate this legacy column" guidance the agent relies on. The example
-  keeps them verbatim.
-- A LookML measure that references only measures (a ratio) becomes a `func_sql`
-  referencing other `${measure}`s — Hex resolves the dependency. Confirm the divide
-  is `NULLIF`-guarded.
-- **Parity still applies.** After publishing, spot-check a metric against the same
-  warehouse `SELECT` (and Looker's own value via `looker_fetch.py query`) — the
-  same numeric parity discipline as the SQL-fidelity gate.
+**Beyond the 1:1 mapping** (see the spec for detail): `id` rules (2–128 chars,
+lowercase/`_`/digits, no reserved names like `this`/`model`/`view`); `base_sql_query`
+for derived tables; `expr_calc`/`func_calc` for Hex-formula (non-SQL) fields;
+`semi_additive` for balance-style measures. Absent by design: number formatting,
+synonyms, `access_grant`s, PDTs.
+
+**Fidelity:** preserve LookML `description`s verbatim — they carry the agent's
+"prefer this field" / "don't truncate this legacy column" guidance. After
+publishing, spot-check each metric against the same warehouse `SELECT` (and Looker's
+value via `looker_fetch.py query`) — same numeric-parity discipline as the SQL gate.
 
 ## Publish flow (`hex context`)
 
-`hex context` syncs a **local directory of semantic YAML → an existing semantic
-project**, via a `hex_context.config.json`. Commands are hidden from
-`hex context --help` but real (verified on `hex 1.2026.07.21`).
+Syncs a **local directory of semantic YAML → an existing semantic project** via
+`hex_context.config.json`. Team/Enterprise-only; needs a workspace token
+(`HEX_API_TOKEN`); synced resources are **read-only in Hex** (edit in the repo). Not
+for Snowflake Semantic Views or Databricks Metric Views. Reference:
+[Context Sync](https://learn.hex.tech/docs/agent-management/context-management/context-sync).
 
-1. **Customer creates the empty semantic project in the Hex UI** and sends you its
-   **project id** (UUID). (The CLI can't create it.)
+1. **Customer creates the empty project** and sends its **UUID** — Context Studio →
+   Models → the row → ⋯ → "Copy ID". Must be the UUID, not the SQL identifier;
+   a nonexistent id → `Forbidden`.
 
-2. **Write the models + view** to a directory, e.g. `models/`, and a config at the
-   repo root (or pass `--config-path`):
+2. **Write models + view** to a dir and a config at the repo root:
    ```json
    {
-     "semanticProjects": [
-       { "id": "<semantic-project-UUID>", "path": "models/" }
-     ]
+     "semanticProjects": [{ "id": "<UUID>", "path": "models/" }]
    }
    ```
-   ⚠️ The key is **`semanticProjects`** (not `semanticModels` — the alpha docs are
-   stale). `guides` can live in the same config (`{pattern, transform:{stripFolders}}`
-   or `{path, hexFilePath}`) to ship the guide in the same publish.
+   Key is **`semanticProjects`** (each `{id, path}`), *not* `semanticModels`. `guides`
+   can share the config (`{pattern, transform:{stripFolders}}` or `{path, hexFilePath}`).
 
-3. **Preview (non-destructive):**
+3. **Preview** (non-destructive — uploads a throwaway version, live project untouched):
    ```bash
    hex context preview --config-path ./hex_context.config.json [--base draft|latest]
-   # → prints a Preview ID + URL. Uploads a THROWAWAY version; the live project is untouched.
    ```
-   Optionally point the notebook agent at the previewed context:
+   `--base`: `latest` (default) diffs against published state, `draft` against draft.
+   Also `--title`/`--description` (seed the version, carried to publish), `--force`
+   (overwrite conflicting guide files), `--json` (capture the preview id in CI).
+   Smoke-test before publishing:
    `hex thread create "<prompt>" --new-project --preview-id <preview_id>`.
 
-4. **Publish when it checks out:**
+4. **Publish:**
    ```bash
-   hex context publish <preview_id>     # or `-` for the last preview created this session
+   hex context publish <preview_id>   # or `-` for the last preview this session
    ```
 
-> ⚠️ **Publish is a directory→project sync and prunes by default** — the project's
-> models are made to *match your local directory*. Never point it at a semantic
-> project that already holds content you care about unless the local dir is the full
-> intended state. Use a **dedicated** project for the migrated model. `--no-prune`
-> keeps guides that aren't in the config; there's no partial-model merge, so treat
-> the local dir as the source of truth. **Preview is always safe; publish mutates.**
+> ⚠️ **Publish syncs and prunes by default** — the project's models are made to
+> *match your local directory*. Use a **dedicated** project; treat the local dir as
+> the source of truth (no partial-model merge). `--no-prune` only spares guides
+> absent from the config. **Preview is always safe; publish mutates.**
 
 ## When to offer this vs. just the guide
 
-| | Guide (default) | Semantic model (optional) |
-|---|---|---|
-| Headless? | ✅ fully (`hex guide`) | ⚠️ one UI step (create the empty project), then CLI |
-| What it is | retrieved prose context | enforced, queryable metrics + joins |
-| Agent uses it as | guidance | governed definitions it queries directly |
-| Effort | low | medium (author + validate YAML, create project) |
-
-Ship the **guide always**. Offer the **semantic model** when the customer wants a
-real governed metrics layer to replace what LookML gave them — and is fine with the
-one-time project-creation step.
+Ship the **guide always** (headless, low effort, retrieved prose). Offer the
+**semantic model** when the customer wants a real governed, queryable metrics layer
+to replace LookML — and accepts the one-time project-creation step (medium effort:
+author + validate YAML, create the project).
